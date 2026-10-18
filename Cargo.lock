@@ -2732,6 +2732,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "hearken-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde_json",
+ "sqlx",
+ "tokio",
+]
+
+[[package]]
 name = "heck"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

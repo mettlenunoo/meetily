@@ -58,6 +58,14 @@ meeting.md       readable export (after a summary is generated)
 ### Export
 - `summary/markdown_export.rs` — `meeting.md` refreshed after summaries and item edits. Commands: `api_export_meeting_markdown`, `api_write_meeting_markdown`.
 
+### Claude
+- **Summaries with Claude (opt-in, sends the transcript to Anthropic):** pick *Claude* in model settings and enter an API key. The default is Claude Opus 5.5; Sonnet 5.5 and Haiku 5.5 are cheaper.
+- **Ask Claude about your meetings (`hearken-mcp/`):** a read-only MCP server over the Hearken database. It has four tools: `search_meetings`, `list_meetings`, `get_meeting` (summary, items, notes, optional transcript with `[mm:ss]`) and `list_action_items`. It makes no network calls and never writes. Claude only sees what it looks up while answering you.
+  - Install: `cargo build --release -p hearken-mcp && cp target/release/hearken-mcp ~/.local/bin/`
+  - Claude Code: `claude mcp add --scope user hearken -- ~/.local/bin/hearken-mcp`
+  - Claude Desktop: under `mcpServers` in `~/Library/Application Support/Claude/claude_desktop_config.json`: `"hearken": {"command": "/Users/<you>/.local/bin/hearken-mcp"}`
+  - Other database: set `HEARKEN_DB=/path/meeting_minutes.sqlite`.
+
 ## Testing on the Mac
 
 ```bash
