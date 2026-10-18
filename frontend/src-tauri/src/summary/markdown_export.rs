@@ -97,7 +97,7 @@ pub async fn build_markdown(pool: &SqlitePool, meeting_id: &str) -> Result<(Stri
         md.push_str(&format!("duration: {}\n", yaml_string(&format_clock(duration))));
     }
     md.push_str(&format!("open_action_items: {}\n", open_actions));
-    md.push_str("source: meetily\n");
+    md.push_str("source: hearken\n");
     md.push_str("---\n\n");
     md.push_str(&format!("# {}\n\n", title));
 
