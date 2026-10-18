@@ -114,6 +114,8 @@ pub struct ClaudeRequest {
 #[derive(Deserialize, Debug)]
 pub struct ClaudeChatResponse {
     pub content: Vec<ClaudeChatContent>,
+    #[serde(default)]
+    pub stop_reason: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -381,9 +383,10 @@ pub(crate) async fn generate_summary(
         serde_json::json!(ClaudeRequest {
             system: system_prompt.to_string(),
             model: model_name.to_string(),
-            // Shared budget: on models with thinking enabled by default this
-            // covers thinking tokens as well as the answer.
-            max_tokens: 8192,
+            // Shared budget: on current models thinking is always on, so this
+            // covers thinking tokens as well as the answer. Kept at ~16k so the
+            // non-streaming request stays well inside HTTP timeouts.
+            max_tokens: 16000,
             messages: vec![ChatMessage {
                 role: "user".to_string(),
                 content: user_prompt.to_string(),
@@ -495,9 +498,15 @@ pub(crate) async fn generate_summary(
 
         info!("🐞 LLM Response received from Claude");
 
-        let completion = chat_response
-            .completion()
-            .ok_or("No text content in LLM response")?;
+        let completion = chat_response.completion().ok_or_else(|| {
+            match chat_response.stop_reason.as_deref() {
+                Some("refusal") => "Claude declined to process this request".to_string(),
+                Some("max_tokens") => {
+                    "Claude ran out of output tokens before writing a reply".to_string()
+                }
+                _ => "No text content in LLM response".to_string(),
+            }
+        })?;
         Ok(completion)
     } else {
         let chat_response = await_or_cancel(

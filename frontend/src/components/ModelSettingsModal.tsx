@@ -88,10 +88,10 @@ const OPENAI_FALLBACK_MODELS = [
 ];
 
 const CLAUDE_FALLBACK_MODELS = [
-  'claude-sonnet-4-5-20250929',
-  'claude-haiku-4-5-20251001',
-  'claude-opus-4-5-20251101',
-  'claude-3-5-sonnet-latest',
+  'claude-opus-5-5',
+  'claude-sonnet-5-5',
+  'claude-haiku-5-5',
+  'claude-fable-5-1',
 ];
 
 const GROQ_FALLBACK_MODELS = [
