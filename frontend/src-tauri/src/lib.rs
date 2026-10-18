@@ -506,6 +506,15 @@ pub fn run() {
 
             log::info!("Application setup complete");
 
+            // Start a local Ollama for the lifetime of the app (no-op if one is already running)
+            match _app.path().app_data_dir() {
+                Ok(dir) => {
+                    let pid_file = dir.join("ollama.pid");
+                    std::thread::spawn(move || ollama::lifecycle::start_if_needed(pid_file));
+                }
+                Err(e) => log::warn!("Ollama: no app data dir, skipping auto-start: {}", e),
+            }
+
             // Initialize system tray
             if let Err(e) = tray::create_tray(_app.handle()) {
                 log::error!("Failed to create system tray: {}", e);
@@ -868,6 +877,7 @@ pub fn run() {
                             log::error!("Failed to force shutdown sidecar: {}", e);
                         }
                     });
+                    ollama::lifecycle::stop_if_owned();
                     log::info!("Application cleanup complete");
                 }
                 _ => {}
