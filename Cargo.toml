@@ -3,7 +3,8 @@ resolver = "2"
 members = [
     "frontend/src-tauri",
     "llama-helper",
-    "hearken-mcp"
+    "hearken-mcp",
+    "hearken-core"
 ]
 
 # Shared workspace settings

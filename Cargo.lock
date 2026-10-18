@@ -2679,6 +2679,7 @@ dependencies = [
  "futures",
  "futures-channel",
  "futures-util",
+ "hearken-core",
  "infer 0.15.0",
  "lazy_static",
  "log",
@@ -2732,10 +2733,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "hearken-core"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "hearken-mcp"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
+ "hearken-core",
+ "serde",
  "serde_json",
  "sqlx",
  "tokio",
