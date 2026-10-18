@@ -1,11 +1,14 @@
-//! Read-only queries over Hearken's SQLite database, formatted as Markdown for an LLM to read.
+//! Queries over Hearken's SQLite database, formatted as Markdown for an LLM to read, plus the
+//! two narrow writes Claude may make: a meeting's summary and its AI action items/decisions.
 
-use serde_json::Value;
+use hearken_core::items::{ground_items, load_timed_transcript, replace_ai_items, RawItem};
+use serde_json::{json, Value};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use sqlx::Row;
 use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::time::Duration;
 
 /// Transcript text returned by one get_meeting call, so a long meeting can't flood the context.
 const MAX_TRANSCRIPT_CHARS: usize = 60_000;
@@ -26,23 +29,21 @@ pub fn database_path() -> PathBuf {
     PathBuf::from(home).join("Library/Application Support/com.mettlenunoo.hearken/meeting_minutes.sqlite")
 }
 
-pub async fn open_read_only(path: &PathBuf) -> anyhow::Result<SqlitePool> {
+/// Opens the existing database (never creates one). Writes are limited to the save_* functions
+/// below; nothing here deletes meetings or touches transcripts, notes or audio.
+pub async fn open(path: &PathBuf) -> anyhow::Result<SqlitePool> {
     if !path.exists() {
         anyhow::bail!("Hearken database not found at {} (open Hearken once first)", path.display());
     }
     let opts = SqliteConnectOptions::from_str(&format!("sqlite://{}", path.display()))?
-        .read_only(true)
-        .create_if_missing(false);
+        .create_if_missing(false)
+        .busy_timeout(Duration::from_secs(10)); // wait if Hearken is mid-write
     Ok(SqlitePoolOptions::new().max_connections(2).connect_with(opts).await?)
 }
 
 // ---------- formatting helpers ----------
 
-pub fn clock(seconds: f64) -> String {
-    let s = seconds.max(0.0).round() as u64;
-    let (h, m, s) = (s / 3600, (s % 3600) / 60, s % 60);
-    if h > 0 { format!("{h}:{m:02}:{s:02}") } else { format!("{m:02}:{s:02}") }
-}
+pub use hearken_core::items::format_clock as clock;
 
 /// "2026-10-18T15:01:04.123Z" -> "2026-10-18 15:01"
 fn short_date(ts: &str) -> String {
@@ -62,11 +63,7 @@ pub fn build_fts_query(query: &str) -> Option<String> {
     Some(parts.join(" AND "))
 }
 
-/// Summaries are stored as JSON with the display text in `markdown`.
-fn summary_markdown(result: &str) -> Option<String> {
-    let value: Value = serde_json::from_str(result).ok()?;
-    value.get("markdown").and_then(Value::as_str).map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
-}
+use hearken_core::export::summary_markdown;
 
 fn clean_summary_snippet(snippet: &str) -> String {
     let cleaned: String = snippet
@@ -358,6 +355,173 @@ pub async fn list_action_items(pool: &SqlitePool, args: &Value) -> Result<String
     Ok(out)
 }
 
+// ---------- writes ----------
+
+fn now() -> String {
+    chrono::Utc::now().to_rfc3339()
+}
+
+async fn require_meeting(pool: &SqlitePool, id: &str) -> Result<String, String> {
+    sqlx::query_scalar::<_, String>("SELECT title FROM meetings WHERE id = ?1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("No meeting with id {id}"))
+}
+
+/// Mirrors the app: the meeting title is shown separately, so a leading `# Title` is dropped.
+fn summary_body(markdown: &str) -> Result<String, String> {
+    let lower = markdown.to_lowercase();
+    if lower.contains("<think") || lower.contains("</think") {
+        return Err("summary must not contain <thinking> tags".into());
+    }
+    let trimmed = markdown.trim();
+    let body = if trimmed.starts_with("# ") {
+        trimmed.split_once('\n').map(|(_, rest)| rest.trim_start()).unwrap_or("")
+    } else {
+        trimmed
+    };
+    if body.trim().is_empty() {
+        return Err("summary is empty (a lone `# Title` line doesn't count)".into());
+    }
+    Ok(body.trim_end().to_string())
+}
+
+/// Best-effort refresh of meeting.md, like the app does after a summary or item change.
+async fn refresh_export(pool: &SqlitePool, id: &str) -> String {
+    match hearken_core::export::write_to_meeting_folder(pool, id).await {
+        Ok(Some(p)) => format!("meeting.md updated at {}", p.display()),
+        Ok(None) => "no meeting folder, so meeting.md was not written".into(),
+        Err(e) => format!("meeting.md not updated: {e}"),
+    }
+}
+
+pub async fn save_summary(pool: &SqlitePool, args: &Value) -> Result<String, String> {
+    let id = arg_str(args, "meeting_id").ok_or("meeting_id is required")?;
+    let markdown = args.get("markdown").and_then(Value::as_str).ok_or("markdown is required")?;
+    let title = require_meeting(pool, id).await?;
+    let body = summary_body(markdown)?;
+
+    let status: Option<String> = sqlx::query_scalar("SELECT status FROM summary_processes WHERE meeting_id = ?1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    if status.as_deref().is_some_and(|s| s.eq_ignore_ascii_case("pending") || s.eq_ignore_ascii_case("processing")) {
+        return Err("Hearken is generating a summary for this meeting right now; try again when it has finished".into());
+    }
+
+    let result = json!({"markdown": body, "generated_by": "claude-via-mcp", "reasoning_stripped": false}).to_string();
+    let ts = now();
+    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+    if status.is_some() {
+        // Keep the previous summary in the backup columns the app already has.
+        sqlx::query(
+            "UPDATE summary_processes
+             SET result_backup = CASE WHEN result IS NOT NULL AND result != '' THEN result ELSE result_backup END,
+                 result_backup_timestamp = CASE WHEN result IS NOT NULL AND result != '' THEN ?1 ELSE result_backup_timestamp END,
+                 result = ?2, status = 'completed', error = NULL, updated_at = ?1, end_time = ?1
+             WHERE meeting_id = ?3",
+        )
+        .bind(&ts)
+        .bind(&result)
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+    } else {
+        sqlx::query(
+            "INSERT INTO summary_processes
+                (meeting_id, status, created_at, updated_at, start_time, end_time, result, chunk_count, processing_time)
+             VALUES (?1, 'completed', ?2, ?2, ?2, ?2, ?3, 0, 0.0)",
+        )
+        .bind(id)
+        .bind(&ts)
+        .bind(&result)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+    }
+    sqlx::query("UPDATE meetings SET updated_at = ?1 WHERE id = ?2")
+        .bind(&ts)
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+    tx.commit().await.map_err(|e| e.to_string())?;
+
+    let export = refresh_export(pool, id).await;
+    let backed_up = if status.is_some() { " The previous summary was kept as a backup." } else { "" };
+    Ok(format!(
+        "Saved the summary for \"{title}\" ({} characters).{backed_up} {export}. It shows in Hearken next time the meeting is opened.",
+        body.chars().count()
+    ))
+}
+
+#[derive(serde::Deserialize, Default)]
+struct ItemsArgs {
+    #[serde(default)]
+    action_items: Vec<RawItem>,
+    #[serde(default)]
+    decisions: Vec<RawItem>,
+}
+
+pub async fn save_meeting_items(pool: &SqlitePool, args: &Value) -> Result<String, String> {
+    let id = arg_str(args, "meeting_id").ok_or("meeting_id is required")?;
+    let title = require_meeting(pool, id).await?;
+    let parsed: ItemsArgs = serde_json::from_value(args.clone()).map_err(|e| format!("invalid items: {e}"))?;
+
+    let lines = load_timed_transcript(pool, id).await.map_err(|e| e.to_string())?;
+    if lines.is_empty() {
+        return Err("this meeting has no transcript, so items can't be checked against it".into());
+    }
+
+    let proposed: Vec<(&str, RawItem)> = parsed
+        .action_items
+        .into_iter()
+        .map(|r| ("action", r))
+        .chain(parsed.decisions.into_iter().map(|r| ("decision", r)))
+        .collect();
+    let items = ground_items(id, proposed, &lines, "ai");
+    replace_ai_items(pool, id, &items).await.map_err(|e| e.to_string())?;
+
+    let kept: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM meeting_items WHERE meeting_id = ?1 AND (source = 'user' OR user_edited = 1)",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    let export = refresh_export(pool, id).await;
+
+    let actions = items.iter().filter(|i| i.kind == "action").count();
+    let decisions = items.len() - actions;
+    let mut out = format!(
+        "Saved {actions} action item(s) and {decisions} decision(s) for \"{title}\", replacing the previous AI items. \
+         {kept} item(s) you created or edited in Hearken were left untouched. {export}.\n"
+    );
+    let unverified: Vec<_> = items.iter().filter(|i| !i.evidence_verified).collect();
+    if unverified.is_empty() {
+        out.push_str("\nEvery quote was found in the transcript; times come from where each quote appears.");
+    } else {
+        let _ = writeln!(
+            out,
+            "\n{} item(s) are marked UNVERIFIED because their quote was not found word-for-word in the transcript \
+             (needs at least 3 consecutive words, punctuation and case ignored):",
+            unverified.len()
+        );
+        for i in unverified {
+            let _ = writeln!(out, "- {} — quote: {:?}", i.title, i.evidence_quote.as_deref().unwrap_or("(none)"));
+        }
+        out.push_str(
+            "\nTo fix them, call save_meeting_items again with the full list, copying each quote exactly from one or two \
+             adjacent transcript lines (without the [mm:ss] prefix).",
+        );
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -366,7 +530,7 @@ mod tests {
     fn clock_formats() {
         assert_eq!(clock(5.4), "00:05");
         assert_eq!(clock(754.0), "12:34");
-        assert_eq!(clock(3725.0), "1:02:05");
+        assert_eq!(clock(3725.0), "01:02:05");
     }
 
     #[test]
@@ -377,8 +541,11 @@ mod tests {
     }
 
     #[test]
-    fn summary_markdown_reads_json() {
-        assert_eq!(summary_markdown(r##"{"markdown":"# Hi\n"}"##).as_deref(), Some("# Hi"));
-        assert!(summary_markdown("not json").is_none());
+    fn summary_body_strips_title_and_rejects_reasoning() {
+        assert_eq!(summary_body("# Budget review\n\n## Key points\n- A").unwrap(), "## Key points\n- A");
+        assert_eq!(summary_body("## Key points\n- A").unwrap(), "## Key points\n- A");
+        assert!(summary_body("   ").is_err());
+        assert!(summary_body("# Only a title").is_err());
+        assert!(summary_body("<thinking>x</thinking>## A").is_err());
     }
 }

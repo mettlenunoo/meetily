@@ -60,8 +60,10 @@ meeting.md       readable export (after a summary is generated)
 
 ### Claude
 - **Summaries with Claude (opt-in, sends the transcript to Anthropic):** pick *Claude* in model settings and enter an API key. The default is Claude Opus 5.5; Sonnet 5.5 and Haiku 5.5 are cheaper.
-- **Ask Claude about your meetings (`hearken-mcp/`):** a read-only MCP server over the Hearken database. It has four tools: `search_meetings`, `list_meetings`, `get_meeting` (summary, items, notes, optional transcript with `[mm:ss]`) and `list_action_items`. It makes no network calls and never writes. Claude only sees what it looks up while answering you.
-  - Install: `cargo build --release -p hearken-mcp && cp target/release/hearken-mcp ~/.local/bin/`
+- **Ask Claude about your meetings (`hearken-mcp/`):** an MCP server over the Hearken database, with no network calls. Claude only sees what it looks up while answering you.
+  - Read tools: `search_meetings`, `list_meetings`, `get_meeting` (summary, items, notes, optional paged transcript with `[mm:ss]`) and `list_action_items`.
+  - **Summaries on your Claude subscription:** `save_summary` and `save_meeting_items` let Claude write a meeting's summary and items back into Hearken, with no API key. In Claude Desktop, pick the **"Summarise a Hearken meeting"** prompt, or just ask. Items go through the same `hearken-core` grounding as the app's own extraction: quotes are verified against the transcript, times come from the match, placeholder owners and dates are cleared, and your own or edited items are never replaced. The previous summary is kept in `result_backup`. Claude never deletes meetings or changes transcripts, notes or audio.
+  - Install: `cargo build --release -p hearken-mcp && rm -f ~/.local/bin/hearken-mcp && cp target/release/hearken-mcp ~/.local/bin/`. The `rm` matters: macOS kills a binary copied over an existing one (exit 137).
   - Claude Code: `claude mcp add --scope user hearken -- ~/.local/bin/hearken-mcp`
   - Claude Desktop: under `mcpServers` in `~/Library/Application Support/Claude/claude_desktop_config.json`: `"hearken": {"command": "/Users/<you>/.local/bin/hearken-mcp"}`
   - Other database: set `HEARKEN_DB=/path/meeting_minutes.sqlite`.

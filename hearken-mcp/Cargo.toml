@@ -2,10 +2,13 @@
 name = "hearken-mcp"
 version = "0.1.0"
 edition = "2021"
-description = "Read-only MCP server exposing Hearken meetings, transcripts and action items to MCP clients (Claude Desktop, Claude Code)"
+description = "MCP server that lets Claude read Hearken meetings and save summaries and evidence-checked action items"
 
 [dependencies]
 anyhow = "1.0"
+chrono = "0.4"
+hearken-core = { path = "../hearken-core" }
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.32.0", features = ["rt", "macros", "io-std", "io-util"] }
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite"] }

@@ -1,9 +1,14 @@
-//! hearken-mcp: a read-only MCP server over Hearken's local meeting database.
+//! hearken-mcp: an MCP server over Hearken's local meeting database.
 //!
 //! Speaks MCP (JSON-RPC 2.0, one message per line) on stdin/stdout so MCP clients such as
 //! Claude Desktop and Claude Code can search meetings, read summaries and transcripts, and
-//! list action items. The database is opened read-only; this process never writes to it,
-//! never touches audio, and makes no network calls. Logs go to stderr.
+//! list action items. Claude can also save two things back, so summaries can be written with
+//! the user's Claude subscription instead of an API key:
+//! - a meeting's summary (the previous one is kept in the app's backup column), and
+//! - its AI action items / decisions, grounded by hearken-core exactly like the app's own
+//!   extraction (quotes verified, times from the transcript, user-created/edited items kept).
+//! Nothing else is ever written: no deletes, no transcript, notes or audio changes. No network
+//! calls. Logs go to stderr.
 //!
 //! Database: `$HEARKEN_DB`, else `--db <path>`, else
 //! `~/Library/Application Support/com.mettlenunoo.hearken/meeting_minutes.sqlite`.
@@ -20,7 +25,9 @@ const SUPPORTED_PROTOCOLS: &[&str] = &["2025-11-25", "2025-06-18", "2025-03-26",
 const INSTRUCTIONS: &str = "Hearken is the user's private, local meeting recorder. These tools read its \
 meeting database: titles, AI summaries, the user's notes, timestamped transcripts, and extracted \
 action items and decisions. Search first, then fetch the meeting you need. When you answer from a \
-meeting, cite its title, date and the [mm:ss] timestamp. Items marked unverified have a supporting \
+meeting, cite its title, date and the [mm:ss] timestamp. To summarise a meeting: read it with \
+get_meeting(include_transcript=true), paging through long transcripts, then call save_summary and \
+save_meeting_items. Only save when the user asked you to summarise or save. Items marked unverified have a supporting \
 quote that was not found in the transcript; treat them with caution. Owners and due dates are only \
 present when someone said them; never fill them in. If nothing relevant is found, say so instead of guessing.";
 
@@ -85,6 +92,50 @@ fn tools() -> Value {
                 "additionalProperties": false
             },
             "annotations": {"readOnlyHint": true, "openWorldHint": false}
+        },
+        {
+            "name": "save_summary",
+            "description": "Save a Markdown summary for one meeting into Hearken, replacing the current one (which Hearken keeps as a backup). Only call this when the user asked you to summarise or save. Base it only on the meeting's transcript and notes. Do not start with a '# Title' line (Hearken shows the title separately); use '##' section headings, e.g. Overview, Key points, Decisions, Action items, Open questions. Refer to moments as [mm:ss].",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "meeting_id": {"type": "string"},
+                    "markdown": {"type": "string", "description": "The summary in Markdown."}
+                },
+                "required": ["meeting_id", "markdown"],
+                "additionalProperties": false
+            },
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
+        },
+        {
+            "name": "save_meeting_items",
+            "description": "Save the action items and decisions for one meeting. Replaces the meeting's previous AI-generated items; items the user created or edited in Hearken are never touched. Send the complete list every time. Rules: use only what the transcript says; owner and due are null unless someone stated them (no guessing); due is as spoken (e.g. 'Friday'); evidence_quote must be 5 to 25 consecutive words copied exactly from the transcript (one line, or across two adjacent lines), without the [mm:ss] prefix. Each quote is checked against the transcript and the time is taken from where it appears; the reply lists any that could not be verified so you can correct them.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "meeting_id": {"type": "string"},
+                    "action_items": {"type": "array", "items": {"$ref": "#/$defs/item"}},
+                    "decisions": {"type": "array", "items": {"$ref": "#/$defs/item"}}
+                },
+                "required": ["meeting_id", "action_items", "decisions"],
+                "additionalProperties": false,
+                "$defs": {
+                    "item": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string", "description": "Short imperative for actions (\"Send the revised forecast\"); a statement for decisions."},
+                            "description": {"type": ["string", "null"]},
+                            "owner": {"type": ["string", "null"], "description": "As named in the transcript, or null."},
+                            "due": {"type": ["string", "null"], "description": "As spoken, or null."},
+                            "priority": {"type": ["string", "null"], "enum": ["high", "medium", "low", null]},
+                            "evidence_quote": {"type": "string"}
+                        },
+                        "required": ["title", "evidence_quote"],
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
         }
     ])
 }
@@ -96,13 +147,42 @@ async fn handle(pool: &sqlx::SqlitePool, method: &str, params: &Value) -> Result
             let version = if SUPPORTED_PROTOCOLS.contains(&requested) { requested } else { LATEST_PROTOCOL };
             Ok(json!({
                 "protocolVersion": version,
-                "capabilities": {"tools": {"listChanged": false}},
+                "capabilities": {"tools": {"listChanged": false}, "prompts": {"listChanged": false}},
                 "serverInfo": {"name": SERVER_NAME, "title": "Hearken meetings", "version": env!("CARGO_PKG_VERSION")},
                 "instructions": INSTRUCTIONS
             }))
         }
         "ping" => Ok(json!({})),
         "tools/list" => Ok(json!({"tools": tools()})),
+        "prompts/list" => Ok(json!({"prompts": [{
+            "name": "summarise_meeting",
+            "title": "Summarise a Hearken meeting",
+            "description": "Summarise a meeting and save the summary, action items and decisions back into Hearken.",
+            "arguments": [{"name": "meeting", "description": "Meeting title or id (leave empty for the most recent).", "required": false}]
+        }]})),
+        "prompts/get" => {
+            if params.get("name").and_then(Value::as_str) != Some("summarise_meeting") {
+                return Err((-32602, "Unknown prompt".into()));
+            }
+            let which = params
+                .pointer("/arguments/meeting")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(|m| format!("the Hearken meeting \"{m}\" (find it with list_meetings or search_meetings)"))
+                .unwrap_or_else(|| "my most recent Hearken meeting (use list_meetings)".into());
+            Ok(json!({
+                "description": "Summarise a Hearken meeting and save it",
+                "messages": [{"role": "user", "content": {"type": "text", "text": format!(
+                    "Summarise {which}.\n\n\
+                     1. Read it with get_meeting(include_transcript=true); if the transcript is truncated, keep paging with from_seconds until you have all of it.\n\
+                     2. Write a clear summary in Markdown with ## sections (Overview, Key points, Decisions, Action items, Open questions), citing [mm:ss] for important moments, and save it with save_summary.\n\
+                     3. Extract every action item and decision and save them with save_meeting_items. Owners and due dates only if someone said them. Each evidence_quote copied exactly from the transcript.\n\
+                     4. If any quotes come back unverified, fix them and save again.\n\
+                     5. Then show me the summary and the items."
+                )}}]
+            }))
+        }
         "tools/call" => {
             let name = params.get("name").and_then(Value::as_str).unwrap_or("");
             let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
@@ -111,6 +191,8 @@ async fn handle(pool: &sqlx::SqlitePool, method: &str, params: &Value) -> Result
                 "list_meetings" => db::list_meetings(pool, &args).await,
                 "get_meeting" => db::get_meeting(pool, &args).await,
                 "list_action_items" => db::list_action_items(pool, &args).await,
+                "save_summary" => db::save_summary(pool, &args).await,
+                "save_meeting_items" => db::save_meeting_items(pool, &args).await,
                 _ => return Err((-32602, format!("Unknown tool: {name}"))),
             };
             // Tool failures are reported in-band so the model can see and recover from them.
@@ -126,7 +208,7 @@ async fn handle(pool: &sqlx::SqlitePool, method: &str, params: &Value) -> Result
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
     let path = db::database_path();
-    let pool = db::open_read_only(&path).await?;
+    let pool = db::open(&path).await?;
     eprintln!("hearken-mcp: serving {}", path.display());
 
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
