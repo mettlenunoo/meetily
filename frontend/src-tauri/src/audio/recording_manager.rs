@@ -236,6 +236,8 @@ impl RecordingManager {
         // Set up transcription channel
         let (transcription_sender, transcription_receiver) = mpsc::unbounded_channel::<AudioChunk>();
         let (recording_sender, recording_receiver) = mpsc::unbounded_channel::<AudioChunk>();
+        // Separate, time-aligned mic and system tracks (saved as mic.mp4 / system.mp4)
+        let (track_sender, track_receiver) = mpsc::unbounded_channel::<AudioChunk>();
 
         // Start recording state first
         self.state.start_recording()?;
@@ -267,6 +269,7 @@ impl RecordingManager {
             0, // Ignored - using dynamic sizing internally
             48000, // 48kHz sample rate
             Some(recording_sender), // CRITICAL: Pass recording sender to receive pre-mixed audio
+            Some(track_sender),     // Separate mic/system tracks
             mic_name,
             mic_kind,
             sys_name,
@@ -277,6 +280,7 @@ impl RecordingManager {
         }
 
         self.recording_saver.start_accumulation(auto_save, recording_receiver);
+        self.recording_saver.start_track_accumulation(track_receiver);
         self.recording_saver.set_device_info(
             microphone_device.as_ref().map(|d| d.name.clone()),
             system_device.as_ref().map(|d| d.name.clone())

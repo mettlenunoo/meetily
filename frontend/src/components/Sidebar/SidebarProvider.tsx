@@ -27,6 +27,10 @@ interface TranscriptSearchResult {
   title: string;
   matchContext: string;
   timestamp: string;
+  /** Where the match was found: 'title' | 'transcript' | 'summary' | 'notes' */
+  source?: string;
+  /** Seconds from recording start, for transcript matches */
+  audioStartTime?: number | null;
 }
 
 interface SummaryPoll {

@@ -614,6 +614,35 @@ impl SummaryService {
                             }
                         }
                         info!("Summary saved successfully for meeting_id: {}", meeting_id);
+
+                        // Extract action items & decisions with the same model.
+                        // Failures are logged only: the summary is already saved.
+                        let llm = crate::summary::meeting_items::LlmTarget {
+                            provider: &provider,
+                            model_name: &model_name,
+                            api_key: &final_api_key,
+                            ollama_endpoint: ollama_endpoint.as_deref(),
+                            custom_openai_endpoint: custom_openai_endpoint.as_deref(),
+                            max_tokens: custom_openai_max_tokens,
+                            temperature: custom_openai_temperature,
+                            top_p: custom_openai_top_p,
+                            app_data_dir: app_data_dir.as_ref(),
+                            token_threshold,
+                        };
+                        match crate::summary::meeting_items::extract_and_store(
+                            &pool,
+                            &meeting_id,
+                            &llm,
+                            Some(&cancellation_token),
+                        )
+                        .await
+                        {
+                            Ok(n) => info!("Extracted {} action items/decisions for {}", n, meeting_id),
+                            Err(e) => warn!("Action item extraction failed for {}: {}", meeting_id, e),
+                        }
+
+                        // Keep a readable meeting.md next to the recording.
+                        crate::summary::markdown_export::refresh_quietly(&pool, &meeting_id).await;
                     }
                     Ok(false) => warn!("Skipped stale summary completion for meeting_id: {}", meeting_id),
                     Err(error) => error!(

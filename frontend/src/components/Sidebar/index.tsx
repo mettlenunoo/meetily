@@ -39,6 +39,15 @@ interface SidebarItem {
   children?: SidebarItem[];
 }
 
+const SEARCH_SOURCE_LABELS: Record<string, string> = {
+  title: 'Title',
+  transcript: 'Transcript',
+  summary: 'Summary',
+  notes: 'Notes',
+  action: 'Action item',
+  decision: 'Decision',
+};
+
 const Sidebar: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
@@ -545,6 +554,12 @@ const Sidebar: React.FC = () => {
     );
   };
 
+  // Search hits come back with matched words wrapped in **…** (FTS5 snippet markers)
+  const renderHighlightedSnippet = (snippet: string) =>
+    snippet.split('**').map((part, i) =>
+      i % 2 === 1 ? <mark key={i} className="bg-yellow-200 text-gray-900 rounded-sm px-0.5">{part}</mark> : <React.Fragment key={i}>{part}</React.Fragment>
+    );
+
   // Find matching transcript snippet for a meeting item
   const findMatchingSnippet = (itemId: string) => {
     if (!searchQuery.trim() || !searchResults.length) return null;
@@ -645,7 +660,10 @@ const Sidebar: React.FC = () => {
               {/* Show transcript match snippet if available */}
               {hasTranscriptMatch && (
                 <div className="mt-1 ml-8 text-xs text-gray-500 bg-yellow-50 p-1.5 rounded border border-yellow-100 line-clamp-2">
-                  <span className="font-medium text-yellow-600">Match:</span> {matchingResult.matchContext}
+                  <span className="font-medium text-yellow-600">
+                    {SEARCH_SOURCE_LABELS[matchingResult.source ?? 'transcript'] ?? 'Match'}:
+                  </span>{' '}
+                  {renderHighlightedSnippet(matchingResult.matchContext)}
                 </div>
               )}
             </div>

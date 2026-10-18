@@ -707,6 +707,9 @@ pub struct AudioPipeline {
     mixer: ProfessionalAudioMixer,
     // Recording sender for pre-mixed audio
     recording_sender_for_mixed: Option<mpsc::UnboundedSender<AudioChunk>>,
+    // Recording sender for the separate, time-aligned mic and system tracks.
+    // Chunks are tagged with their real DeviceType (Microphone / System).
+    recording_sender_for_tracks: Option<mpsc::UnboundedSender<AudioChunk>>,
 }
 
 impl AudioPipeline {
@@ -785,6 +788,7 @@ impl AudioPipeline {
             ring_buffer,
             mixer,
             recording_sender_for_mixed: None,  // Will be set by manager
+            recording_sender_for_tracks: None, // Will be set by manager
         })
     }
 
@@ -901,6 +905,26 @@ impl AudioPipeline {
                                 };
                                 let _ = sender.send(recording_chunk);
                             }
+
+                            // STEP 5: Send the aligned, unmixed windows as separate tracks.
+                            // Both windows are the same length (zero-padded), so mic.mp4 and
+                            // system.mp4 stay sample-aligned with each other and with audio.mp4.
+                            if let Some(ref sender) = self.recording_sender_for_tracks {
+                                let _ = sender.send(AudioChunk {
+                                    data: mic_window,
+                                    sample_rate: self.sample_rate,
+                                    timestamp: chunk.timestamp,
+                                    chunk_id: self.chunk_id_counter,
+                                    device_type: DeviceType::Microphone,
+                                });
+                                let _ = sender.send(AudioChunk {
+                                    data: sys_window,
+                                    sample_rate: self.sample_rate,
+                                    timestamp: chunk.timestamp,
+                                    chunk_id: self.chunk_id_counter,
+                                    device_type: DeviceType::System,
+                                });
+                            }
                         }
                     }
                 }
@@ -987,6 +1011,7 @@ impl AudioPipelineManager {
         target_chunk_duration_ms: u32,
         sample_rate: u32,
         recording_sender: Option<mpsc::UnboundedSender<AudioChunk>>,
+        track_sender: Option<mpsc::UnboundedSender<AudioChunk>>,
         mic_device_name: String,
         mic_device_kind: super::device_detection::InputDeviceKind,
         system_device_name: String,
@@ -1018,6 +1043,7 @@ impl AudioPipelineManager {
         // CRITICAL FIX: Connect recording sender to receive pre-mixed audio
         // This ensures both mic AND system audio are captured in recordings
         pipeline.recording_sender_for_mixed = recording_sender;
+        pipeline.recording_sender_for_tracks = track_sender;
 
         let handle = tokio::spawn(async move {
             pipeline.run().await

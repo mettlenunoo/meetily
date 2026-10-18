@@ -9,6 +9,7 @@ import { SummaryUpdaterButtonGroup } from './SummaryUpdaterButtonGroup';
 import Analytics from '@/lib/analytics';
 import { useEffect, useRef, useState, RefObject } from 'react';
 import { toast } from 'sonner';
+import { MeetingItemsPanel } from './MeetingItemsPanel';
 import { Languages, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -314,6 +315,7 @@ export function SummaryPanel({
                 created_at: meeting.created_at
               }}
             />
+            <MeetingItemsPanel meetingId={meeting.id} refreshKey={summaryStatus} />
           </div>
           {summaryStatus !== 'idle' && (
             <div className={`mt-4 p-4 rounded-lg ${summaryStatus === 'error' ? 'bg-red-100 text-red-700' :

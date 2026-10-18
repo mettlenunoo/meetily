@@ -44,6 +44,12 @@ pub struct TranscriptSearchResult {
     #[serde(rename = "matchContext")]
     pub match_context: String,
     pub timestamp: String,
+    /// Where the match was found: "title" | "transcript" | "summary" | "notes"
+    #[serde(default)]
+    pub source: String,
+    /// For transcript hits: seconds from the start of the recording, to jump the player
+    #[serde(rename = "audioStartTime", default)]
+    pub audio_start_time: Option<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

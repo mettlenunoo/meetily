@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 use serde::{Serialize, Deserialize};
 use std::path::PathBuf;
 
-use super::recording_state::AudioChunk;
+use super::recording_state::{AudioChunk, DeviceType};
 use super::audio_processing::create_meeting_folder;
 use super::incremental_saver::IncrementalAudioSaver;
 
@@ -38,6 +38,9 @@ pub struct MeetingMetadata {
     pub transcript_file: String,
     pub sample_rate: u32,
     pub status: String,  // "recording", "completed", "error"
+    /// Separate per-source recordings ("mic.mp4", "system.mp4"), when available
+    #[serde(default)]
+    pub track_files: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +52,11 @@ pub struct DeviceInfo {
 /// New recording saver using incremental saving strategy
 pub struct RecordingSaver {
     incremental_saver: Option<Arc<AsyncMutex<IncrementalAudioSaver>>>,
+    /// Savers for the separate mic and system tracks (only when auto_save is on)
+    mic_track_saver: Option<Arc<AsyncMutex<IncrementalAudioSaver>>>,
+    system_track_saver: Option<Arc<AsyncMutex<IncrementalAudioSaver>>>,
+    /// Accumulation tasks; awaited on stop so no queued audio is dropped
+    accumulation_handles: Vec<tokio::task::JoinHandle<()>>,
     meeting_folder: Option<PathBuf>,
     meeting_name: Option<String>,
     metadata: Option<MeetingMetadata>,
@@ -60,6 +68,9 @@ impl RecordingSaver {
     pub fn new() -> Self {
         Self {
             incremental_saver: None,
+            mic_track_saver: None,
+            system_track_saver: None,
+            accumulation_handles: Vec::new(),
             meeting_folder: None,
             meeting_name: None,
             metadata: None,
@@ -171,24 +182,16 @@ impl RecordingSaver {
         }
 
         // Start accumulation task
-        let is_saving_clone = self.is_saving.clone();
         let incremental_saver_arc = self.incremental_saver.clone();
         let save_audio = auto_save;
 
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             info!("Recording saver accumulation task started (save_audio: {})", save_audio);
 
+            // Runs until the pipeline drops its sender. The pipeline is always stopped
+            // (and fully flushed) before stop_and_save, so draining to the end keeps the
+            // last seconds of audio that the upstream early-`break` could drop.
             while let Some(chunk) = receiver.recv().await {
-                // Check if we should continue
-                let should_continue = if let Ok(is_saving) = is_saving_clone.lock() {
-                    *is_saving
-                } else {
-                    false
-                };
-
-                if !should_continue {
-                    break;
-                }
 
                 // Only process audio chunks if auto_save is enabled
                 if save_audio {
@@ -209,11 +212,47 @@ impl RecordingSaver {
 
             info!("Recording saver accumulation task ended");
         });
+        self.accumulation_handles.push(handle);
 
         // Set saving flag
         if let Ok(mut is_saving) = self.is_saving.lock() {
             *is_saving = true;
         }
+    }
+
+    /// Start saving the separate mic and system tracks.
+    /// Must be called after `start_accumulation` (which creates the meeting folder).
+    /// If audio saving is off, the chunks are drained and discarded.
+    pub fn start_track_accumulation(&mut self, mut receiver: mpsc::UnboundedReceiver<AudioChunk>) {
+        if let (Some(folder), Some(_)) = (self.meeting_folder.clone(), self.incremental_saver.as_ref()) {
+            for track in super::incremental_saver::TRACK_NAMES {
+                match IncrementalAudioSaver::new_track(folder.clone(), 48000, track) {
+                    Ok(saver) => {
+                        let saver = Some(Arc::new(AsyncMutex::new(saver)));
+                        if track == "mic" { self.mic_track_saver = saver; } else { self.system_track_saver = saver; }
+                    }
+                    Err(e) => warn!("Could not start {} track saver (mixed audio still saved): {}", track, e),
+                }
+            }
+        }
+
+        let mic = self.mic_track_saver.clone();
+        let system = self.system_track_saver.clone();
+        let handle = tokio::spawn(async move {
+            while let Some(chunk) = receiver.recv().await {
+                let target = match chunk.device_type {
+                    DeviceType::Microphone => &mic,
+                    DeviceType::System => &system,
+                };
+                if let Some(saver) = target {
+                    if let Err(e) = saver.lock().await.add_chunk(chunk) {
+                        error!("Failed to add chunk to track saver: {}", e);
+                    }
+                }
+            }
+            info!("Track accumulation task ended");
+        });
+        self.accumulation_handles.push(handle);
     }
 
     /// Initialize meeting folder structure and metadata
@@ -253,6 +292,7 @@ impl RecordingSaver {
             transcript_file: "transcripts.json".to_string(),
             sample_rate: 48000,
             status: "recording".to_string(),
+            track_files: Vec::new(),
         };
 
         // Write initial metadata.json
@@ -361,8 +401,14 @@ impl RecordingSaver {
             *is_saving = false;
         }
 
-        // Give time for final chunks
-        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        // Wait for the accumulation tasks to write every queued chunk.
+        // They end when the (already stopped) pipeline's senders are dropped.
+        for handle in self.accumulation_handles.drain(..) {
+            match tokio::time::timeout(tokio::time::Duration::from_secs(15), handle).await {
+                Ok(_) => {}
+                Err(_) => warn!("Timed out waiting for audio accumulation to drain; finalizing anyway"),
+            }
+        }
 
         // Check if incremental saver exists (indicates auto_save was enabled)
         let should_save_audio = self.incremental_saver.is_some();
@@ -391,6 +437,22 @@ impl RecordingSaver {
             return Err("No incremental saver initialized".to_string());
         };
 
+        // Finalize the separate tracks. Failures here never fail the recording:
+        // the mixed audio.mp4 is already saved and any unmerged checkpoints are kept.
+        let mut track_files = Vec::new();
+        for saver in [self.mic_track_saver.take(), self.system_track_saver.take()].into_iter().flatten() {
+            let mut saver = saver.lock().await;
+            match saver.finalize().await {
+                Ok(path) => {
+                    info!("✅ Saved track: {}", path.display());
+                    if let Some(name) = path.file_name() {
+                        track_files.push(name.to_string_lossy().to_string());
+                    }
+                }
+                Err(e) => warn!("Track not finalized (mixed audio unaffected): {}", e),
+            }
+        }
+
         // Save final transcripts.json with validation
         if let Some(folder) = &self.meeting_folder {
             if let Err(e) = self.write_transcripts_json(folder) {
@@ -410,6 +472,7 @@ impl RecordingSaver {
         // Update metadata to completed status with actual recording duration
         if let (Some(folder), Some(mut metadata)) = (&self.meeting_folder, self.metadata.clone()) {
             metadata.status = "completed".to_string();
+            metadata.track_files = track_files.clone();
             metadata.completed_at = Some(chrono::Utc::now().to_rfc3339());
 
             // Use actual recording duration from RecordingState (more accurate than transcript segments)
@@ -436,6 +499,7 @@ impl RecordingSaver {
             "transcript_file": self.meeting_folder.as_ref()
                 .map(|f| f.join("transcripts.json").to_string_lossy().to_string()),
             "meeting_name": self.meeting_name,
+            "track_files": track_files,
             "meeting_folder": self.meeting_folder.as_ref()
                 .map(|f| f.to_string_lossy().to_string())
         });

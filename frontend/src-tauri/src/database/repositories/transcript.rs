@@ -82,9 +82,84 @@ impl TranscriptsRepository {
         Ok(meeting_id)
     }
 
-    /// Searches for a query string within the transcripts.
-    /// It returns a list of matching transcripts with context.
+    /// Searches every meeting's title, transcript, AI summary and notes.
+    ///
+    /// Uses the FTS5 `search_index` (ranked with BM25, with highlighted snippets).
+    /// Falls back to a plain LIKE scan over transcripts if the index is unavailable.
     pub async fn search_transcripts(
+        pool: &SqlitePool,
+        query: &str,
+    ) -> Result<Vec<TranscriptSearchResult>, SqlxError> {
+        let Some(fts_query) = Self::build_fts_query(query) else {
+            return Ok(Vec::new());
+        };
+
+        let fts = sqlx::query_as::<_, (String, String, String, String, String, Option<f64>)>(
+            "SELECT s.meeting_id,
+                    m.title,
+                    snippet(search_index, 0, '**', '**', '…', 24) AS snippet,
+                    COALESCE(s.ts, m.created_at) AS ts,
+                    s.source,
+                    t.audio_start_time
+             FROM search_index s
+             JOIN meetings m ON m.id = s.meeting_id
+             LEFT JOIN transcripts t ON s.source = 'transcript' AND t.id = s.ref_id
+             WHERE search_index MATCH ?
+             ORDER BY bm25(search_index)
+             LIMIT 100",
+        )
+        .bind(&fts_query)
+        .fetch_all(pool)
+        .await;
+
+        match fts {
+            Ok(rows) => Ok(rows
+                .into_iter()
+                .map(|(id, title, snippet, timestamp, source, audio_start_time)| TranscriptSearchResult {
+                    id,
+                    title,
+                    match_context: Self::clean_snippet(&snippet, &source),
+                    timestamp,
+                    source,
+                    audio_start_time,
+                })
+                .collect()),
+            Err(e) => {
+                error!("Full-text search failed ({}); falling back to LIKE search", e);
+                Self::search_transcripts_like(pool, query).await
+            }
+        }
+    }
+
+    /// Turns free text into a safe FTS5 query: every word must appear,
+    /// the last word also matches as a prefix ("deploy" finds "deployment").
+    pub fn build_fts_query(query: &str) -> Option<String> {
+        let terms: Vec<String> = query
+            .split_whitespace()
+            .map(|t| t.replace('"', ""))
+            .filter(|t| t.chars().any(|c| c.is_alphanumeric()))
+            .collect();
+        let (last, rest) = terms.split_last()?;
+        let mut parts: Vec<String> = rest.iter().map(|t| format!("\"{}\"", t)).collect();
+        parts.push(format!("\"{}\"*", last));
+        Some(parts.join(" AND "))
+    }
+
+    /// Summaries are stored as JSON; strip the JSON punctuation from their snippets.
+    fn clean_snippet(snippet: &str, source: &str) -> String {
+        if source != "summary" {
+            return snippet.to_string();
+        }
+        let cleaned: String = snippet
+            .replace("\\n", " ")
+            .chars()
+            .filter(|c| !matches!(c, '{' | '}' | '[' | ']' | '"' | '\\'))
+            .collect();
+        cleaned.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+
+    /// Original substring search over transcripts (used only as a fallback).
+    async fn search_transcripts_like(
         pool: &SqlitePool,
         query: &str,
     ) -> Result<Vec<TranscriptSearchResult>, SqlxError> {
@@ -94,8 +169,8 @@ impl TranscriptsRepository {
 
         let search_query = format!("%{}%", query.to_lowercase());
 
-        let rows = sqlx::query_as::<_, (String, String, String, String)>(
-            "SELECT m.id, m.title, t.transcript, t.timestamp
+        let rows = sqlx::query_as::<_, (String, String, String, String, Option<f64>)>(
+            "SELECT m.id, m.title, t.transcript, t.timestamp, t.audio_start_time
              FROM meetings m
              JOIN transcripts t ON m.id = t.meeting_id
              WHERE LOWER(t.transcript) LIKE ?",
@@ -106,13 +181,15 @@ impl TranscriptsRepository {
 
         let results = rows
             .into_iter()
-            .map(|(id, title, transcript, timestamp)| {
+            .map(|(id, title, transcript, timestamp, audio_start_time)| {
                 let match_context = Self::get_match_context(&transcript, query);
                 TranscriptSearchResult {
                     id,
                     title,
                     match_context,
                     timestamp,
+                    source: "transcript".to_string(),
+                    audio_start_time,
                 }
             })
             .collect();
@@ -127,8 +204,10 @@ impl TranscriptsRepository {
 
         match transcript_lower.find(&query_lower) {
             Some(match_index) => {
-                let start_index = match_index.saturating_sub(100);
-                let end_index = (match_index + query.len() + 100).min(transcript.len());
+                let mut start_index = match_index.saturating_sub(100).min(transcript.len());
+                while !transcript.is_char_boundary(start_index) { start_index -= 1; }
+                let mut end_index = (match_index + query.len() + 100).min(transcript.len());
+                while !transcript.is_char_boundary(end_index) { end_index += 1; }
 
                 let mut context = String::new();
                 if start_index > 0 {
