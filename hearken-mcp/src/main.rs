@@ -25,7 +25,9 @@ const SUPPORTED_PROTOCOLS: &[&str] = &["2025-11-25", "2025-06-18", "2025-03-26",
 const INSTRUCTIONS: &str = "Hearken is the user's private, local meeting recorder. These tools read its \
 meeting database: titles, AI summaries, the user's notes, timestamped transcripts, and extracted \
 action items and decisions. Search first, then fetch the meeting you need. When you answer from a \
-meeting, cite its title, date and the [mm:ss] timestamp. To summarise a meeting: read it with \
+meeting, cite its title, date and the [mm:ss] timestamp. Meetings are filed under projects (and \
+courses); use list_projects / get_project for anything about a project, and list_action_items with \
+due=overdue for what is late. To summarise a meeting: read it with \
 get_meeting(include_transcript=true), paging through long transcripts, then call save_summary and \
 save_meeting_items. Only save when the user asked you to summarise or save. Items marked unverified have a supporting \
 quote that was not found in the transcript; treat them with caution. Owners and due dates are only \
@@ -79,7 +81,7 @@ fn tools() -> Value {
         },
         {
             "name": "list_action_items",
-            "description": "List action items (and optionally decisions) across all meetings, newest meeting first, with owner and due date when someone stated them, status, the supporting quote and its [mm:ss] time.",
+            "description": "List action items (and optionally decisions) across all meetings, soonest due first, with owner and due date when someone stated them (the spoken words and the exact date when known), OVERDUE flags, status, the supporting quote and its [mm:ss] time, and each item's id for update_action_item.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -87,6 +89,8 @@ fn tools() -> Value {
                     "kind": {"type": "string", "enum": ["action", "decision", "any"], "description": "Default action."},
                     "owner_contains": {"type": "string", "description": "Only items whose owner contains this text."},
                     "meeting_id": {"type": "string", "description": "Only items from this meeting."},
+                    "project": {"type": "string", "description": "Only items from meetings in this project (name or id)."},
+                    "due": {"type": "string", "enum": ["any", "overdue", "week", "undated"], "description": "overdue, due within 7 days, or no exact date. Default any."},
                     "limit": {"type": "integer", "minimum": 1, "maximum": 500, "description": "Maximum items (default 100)."}
                 },
                 "additionalProperties": false
@@ -134,6 +138,58 @@ fn tools() -> Value {
                         "additionalProperties": false
                     }
                 }
+            },
+        },
+        {
+            "name": "list_projects",
+            "description": "List the user's projects and courses with how many meetings, open and overdue action items each has.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"include_archived": {"type": "boolean", "description": "Default false."}},
+                "additionalProperties": false
+            },
+            "annotations": {"readOnlyHint": true, "openWorldHint": false}
+        },
+        {
+            "name": "get_project",
+            "description": "One project: description, people, keywords, its meetings, and the action items and decisions from them (open first, soonest due first).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"project": {"type": "string", "description": "Project name or id."}},
+                "required": ["project"],
+                "additionalProperties": false
+            },
+            "annotations": {"readOnlyHint": true, "openWorldHint": false}
+        },
+        {
+            "name": "assign_meeting_to_project",
+            "description": "File a meeting under a project, as its main project (the previous main one stays linked as an extra) or as an extra project. Only when the user asks.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "meeting_id": {"type": "string"},
+                    "project": {"type": "string", "description": "Project name or id."},
+                    "as": {"type": "string", "enum": ["main", "extra"], "description": "Default main."}
+                },
+                "required": ["meeting_id", "project"],
+                "additionalProperties": false
+            },
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
+        },
+        {
+            "name": "update_action_item",
+            "description": "Change an action item when the user asks: mark it done (or open again, or dismissed), set or clear the owner, set the due date, or rename it. Give only what changes; an empty string clears owner or due_date. Changing content marks the item as the user's, so later AI re-extraction keeps it.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "item_id": {"type": "string", "description": "From list_action_items, get_meeting or get_project ([item ...])."},
+                    "status": {"type": "string", "enum": ["open", "done", "dismissed"]},
+                    "title": {"type": "string"},
+                    "owner": {"type": "string"},
+                    "due_date": {"type": "string", "description": "YYYY-MM-DD; work it out from today's date and tell the user which date you set."}
+                },
+                "required": ["item_id"],
+                "additionalProperties": false
             },
             "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
         }
@@ -191,6 +247,10 @@ async fn handle(pool: &sqlx::SqlitePool, method: &str, params: &Value) -> Result
                 "list_meetings" => db::list_meetings(pool, &args).await,
                 "get_meeting" => db::get_meeting(pool, &args).await,
                 "list_action_items" => db::list_action_items(pool, &args).await,
+                "list_projects" => db::list_projects(pool, &args).await,
+                "get_project" => db::get_project(pool, &args).await,
+                "assign_meeting_to_project" => db::assign_meeting_to_project(pool, &args).await,
+                "update_action_item" => db::update_action_item(pool, &args).await,
                 "save_summary" => db::save_summary(pool, &args).await,
                 "save_meeting_items" => db::save_meeting_items(pool, &args).await,
                 _ => return Err((-32602, format!("Unknown tool: {name}"))),
