@@ -641,6 +641,15 @@ impl SummaryService {
                             Err(e) => warn!("Action item extraction failed for {}: {}", meeting_id, e),
                         }
 
+                        // Suggest a project (never links one: the user confirms in the meeting view).
+                        crate::projects::suggest::suggest_after_summary(
+                            &pool,
+                            &meeting_id,
+                            &llm,
+                            Some(&cancellation_token),
+                        )
+                        .await;
+
                         // Keep a readable meeting.md next to the recording.
                         crate::summary::markdown_export::refresh_quietly(&pool, &meeting_id).await;
                     }

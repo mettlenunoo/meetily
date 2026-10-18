@@ -21,9 +21,10 @@ use uuid::Uuid;
 
 // Grounding and storage live in hearken-core so hearken-mcp (Claude) follows the same rules.
 pub use hearken_core::items::{
-    format_clock, ground_items, insert_item, load_timed_transcript, locate_quote, render_transcript,
+    format_clock, ground_items, insert_item, load_timed_transcript, locate_quote, meeting_day, render_transcript,
     replace_ai_items, MeetingItem, RawItem, TimedLine,
 };
+use hearken_core::dates::resolve_due;
 use hearken_core::items::clean_opt;
 
 /// Upper bound for one extraction prompt, even on large-context cloud models,
@@ -168,7 +169,7 @@ pub async fn extract_and_store(
     }
 
     // Overlapping chunks often repeat an item; ground_items de-duplicates.
-    let items = ground_items(meeting_id, found, &lines, "ai");
+    let items = ground_items(meeting_id, found, &lines, "ai", meeting_day(pool, meeting_id).await);
     replace_ai_items(pool, meeting_id, &items).await.map_err(|e| e.to_string())?;
 
     let unverified = items.iter().filter(|i| !i.evidence_verified).count();
@@ -185,7 +186,7 @@ pub async fn extract_and_store(
 // Tauri commands
 // ---------------------------------------------------------------------------
 
-const ITEM_COLUMNS: &str = "i.id, i.meeting_id, i.kind, i.title, i.description, i.owner, i.due_date, i.priority,
+const ITEM_COLUMNS: &str = "i.id, i.meeting_id, i.kind, i.title, i.description, i.owner, i.due_date, i.due_at, i.priority,
     i.status, i.evidence_quote, i.evidence_start_time, i.evidence_verified, i.source, i.user_edited,
     i.created_at, i.updated_at";
 
@@ -223,6 +224,76 @@ pub async fn api_list_open_action_items(
         .map_err(|e| e.to_string())
 }
 
+/// An action item with the meeting and main project it belongs to (for the Action items page).
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackedItem {
+    #[sqlx(flatten)]
+    #[serde(flatten)]
+    pub item: MeetingItem,
+    pub meeting_title: String,
+    pub meeting_created_at: String,
+    pub project_id: Option<String>,
+    pub project_name: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionItemFilter {
+    /// "open" (default), "done", "dismissed" or "all"
+    pub status: Option<String>,
+    /// A project id, or "none" for items whose meeting has no main project
+    pub project_id: Option<String>,
+    /// Case-insensitive part of the owner's name
+    pub owner: Option<String>,
+    /// "overdue", "today", "week" (due within 7 days), "undated" or "any" (default)
+    pub due: Option<String>,
+    /// "action" (default), "decision" or "all"
+    pub kind: Option<String>,
+}
+
+/// Action items across all meetings for the tracking page: soonest due first, undated last.
+/// Meetings in a project are filtered by their main project.
+#[tauri::command]
+pub async fn api_list_action_items(
+    state: tauri::State<'_, AppState>,
+    filter: Option<ActionItemFilter>,
+) -> Result<Vec<TrackedItem>, String> {
+    let f = filter.unwrap_or_default();
+    let today = chrono::Local::now().date_naive();
+    let week = today + chrono::Duration::days(7);
+    let sql = format!(
+        "SELECT {ITEM_COLUMNS}, m.title AS meeting_title, m.created_at AS meeting_created_at,
+                p.id AS project_id, p.name AS project_name
+         FROM meeting_items i
+         JOIN meetings m ON m.id = i.meeting_id
+         LEFT JOIN meeting_projects mp ON mp.meeting_id = m.id AND mp.is_primary = 1
+         LEFT JOIN projects p ON p.id = mp.project_id
+         WHERE (?1 = 'all' OR i.status = ?1)
+           AND (?2 = 'all' OR i.kind = ?2)
+           AND (?3 IS NULL OR (?3 = 'none' AND p.id IS NULL) OR p.id = ?3)
+           AND (?4 IS NULL OR lower(COALESCE(i.owner, '')) LIKE ?4)
+           AND (CASE ?5
+                  WHEN 'overdue' THEN i.due_at IS NOT NULL AND i.due_at < ?6
+                  WHEN 'today' THEN i.due_at = ?6
+                  WHEN 'week' THEN i.due_at IS NOT NULL AND i.due_at <= ?7
+                  WHEN 'undated' THEN i.due_at IS NULL
+                  ELSE 1 END)
+         ORDER BY i.due_at IS NULL, i.due_at, m.created_at DESC, COALESCE(i.evidence_start_time, 1e12)"
+    );
+    sqlx::query_as::<_, TrackedItem>(&sql)
+        .bind(f.status.as_deref().unwrap_or("open"))
+        .bind(f.kind.as_deref().unwrap_or("action"))
+        .bind(f.project_id.as_deref().filter(|s| !s.is_empty()))
+        .bind(f.owner.as_deref().map(str::trim).filter(|s| !s.is_empty()).map(|o| format!("%{}%", o.to_lowercase())))
+        .bind(f.due.as_deref().unwrap_or("any"))
+        .bind(today.format("%Y-%m-%d").to_string())
+        .bind(week.format("%Y-%m-%d").to_string())
+        .fetch_all(state.db_manager.pool())
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Fields the user can change. Omitted fields are left as they are.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -230,9 +301,28 @@ pub struct MeetingItemUpdate {
     pub title: Option<String>,
     pub description: Option<String>,
     pub owner: Option<String>,
+    /// The due date in words. If `due_at` isn't given too, it is resolved from today's date.
     pub due_date: Option<String>,
+    /// The due date as YYYY-MM-DD (e.g. from a date picker); "" clears it.
+    pub due_at: Option<String>,
     pub priority: Option<String>,
     pub status: Option<String>,
+}
+
+/// Works out `due_at` for an update: an explicit date wins; otherwise new words are
+/// resolved from today (the user is typing now, not speaking in the meeting).
+/// Returns None to leave due_at unchanged, Some("") to clear it.
+fn due_at_for_update(due_date: Option<&str>, due_at: Option<&str>, today: chrono::NaiveDate) -> Result<Option<String>, String> {
+    if let Some(d) = due_at.map(str::trim) {
+        if d.is_empty() {
+            return Ok(Some(String::new()));
+        }
+        chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").map_err(|_| format!("Invalid date: {}", d))?;
+        return Ok(Some(d.to_string()));
+    }
+    Ok(due_date.map(|words| {
+        resolve_due(words, today).map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()
+    }))
 }
 
 #[tauri::command]
@@ -246,11 +336,17 @@ pub async fn api_update_meeting_item(
             return Err(format!("Invalid status: {}", s));
         }
     }
+    let due_at = due_at_for_update(
+        update.due_date.as_deref(),
+        update.due_at.as_deref(),
+        chrono::Local::now().date_naive(),
+    )?;
     // A status change alone doesn't count as an edit; changing the content does.
     let content_edited = update.title.is_some()
         || update.description.is_some()
         || update.owner.is_some()
         || update.due_date.is_some()
+        || update.due_at.is_some()
         || update.priority.is_some();
 
     // Empty strings clear a field (e.g. remove a wrong owner).
@@ -261,6 +357,8 @@ pub async fn api_update_meeting_item(
             description = CASE WHEN ? IS NULL THEN description ELSE NULLIF(?, '') END,
             owner = CASE WHEN ? IS NULL THEN owner ELSE NULLIF(?, '') END,
             due_date = CASE WHEN ? IS NULL THEN due_date ELSE NULLIF(?, '') END,
+            due_at = CASE WHEN ? IS NULL THEN due_at ELSE NULLIF(?, '') END,
+            reminded_on = CASE WHEN ? IS NULL THEN reminded_on ELSE NULL END,
             priority = CASE WHEN ? IS NULL THEN priority ELSE NULLIF(?, '') END,
             status = COALESCE(?, status),
             user_edited = CASE WHEN ? THEN 1 ELSE user_edited END,
@@ -274,6 +372,9 @@ pub async fn api_update_meeting_item(
     .bind(clear(update.owner))
     .bind(clear(update.due_date.clone()))
     .bind(clear(update.due_date))
+    .bind(due_at.clone())
+    .bind(due_at.clone())
+    .bind(due_at)
     .bind(clear(update.priority.clone()))
     .bind(clear(update.priority))
     .bind(update.status)
@@ -321,6 +422,10 @@ pub async fn api_create_meeting_item(
         title: title.trim().to_string(),
         description: None,
         owner: clean_opt(owner),
+        due_at: due_date
+            .as_deref()
+            .and_then(|d| resolve_due(d, chrono::Local::now().date_naive()))
+            .map(|d| d.format("%Y-%m-%d").to_string()),
         due_date: clean_opt(due_date),
         priority: None,
         status: "open".to_string(),
@@ -362,6 +467,17 @@ pub async fn api_delete_meeting_item(state: tauri::State<'_, AppState>, id: Stri
 mod tests {
     // Grounding, quote matching and placeholder tests live in hearken-core.
     use super::*;
+
+    #[test]
+    fn due_at_for_update_prefers_explicit_dates() {
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 10, 14).unwrap(); // Wednesday
+        assert_eq!(due_at_for_update(Some("Friday"), Some("2026-10-30"), today).unwrap().as_deref(), Some("2026-10-30"));
+        assert_eq!(due_at_for_update(Some("Friday"), None, today).unwrap().as_deref(), Some("2026-10-16"));
+        assert_eq!(due_at_for_update(Some("next week"), None, today).unwrap().as_deref(), Some(""), "unresolvable words clear the date");
+        assert_eq!(due_at_for_update(None, Some(""), today).unwrap().as_deref(), Some(""));
+        assert_eq!(due_at_for_update(None, None, today).unwrap(), None);
+        assert!(due_at_for_update(None, Some("30/10"), today).is_err());
+    }
 
     #[test]
     fn parses_json_wrapped_in_text() {

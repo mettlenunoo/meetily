@@ -1,7 +1,7 @@
 //! Queries over Hearken's SQLite database, formatted as Markdown for an LLM to read, plus the
 //! two narrow writes Claude may make: a meeting's summary and its AI action items/decisions.
 
-use hearken_core::items::{ground_items, load_timed_transcript, replace_ai_items, RawItem};
+use hearken_core::items::{ground_items, load_timed_transcript, meeting_day, replace_ai_items, RawItem};
 use serde_json::{json, Value};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use sqlx::Row;
@@ -483,7 +483,7 @@ pub async fn save_meeting_items(pool: &SqlitePool, args: &Value) -> Result<Strin
         .map(|r| ("action", r))
         .chain(parsed.decisions.into_iter().map(|r| ("decision", r)))
         .collect();
-    let items = ground_items(id, proposed, &lines, "ai");
+    let items = ground_items(id, proposed, &lines, "ai", meeting_day(pool, id).await);
     replace_ai_items(pool, id, &items).await.map_err(|e| e.to_string())?;
 
     let kept: i64 = sqlx::query_scalar(

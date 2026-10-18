@@ -49,6 +49,7 @@ pub mod anthropic;
 pub mod groq;
 pub mod openrouter;
 pub mod parakeet_engine;
+pub mod projects;
 pub mod state;
 pub mod summary;
 pub mod tray;
@@ -515,6 +516,9 @@ pub fn run() {
                 Err(e) => log::warn!("Ollama: no app data dir, skipping auto-start: {}", e),
             }
 
+            // Local reminders for overdue and due-soon action items
+            projects::reminders::start(_app.handle().clone());
+
             // Initialize system tray
             if let Err(e) = tray::create_tray(_app.handle()) {
                 log::error!("Failed to create system tray: {}", e);
@@ -726,6 +730,16 @@ pub fn run() {
             // Action items & decisions with transcript evidence
             summary::meeting_items::api_get_meeting_items,
             summary::meeting_items::api_list_open_action_items,
+            summary::meeting_items::api_list_action_items,
+            projects::api_list_projects,
+            projects::api_create_project,
+            projects::api_update_project,
+            projects::api_delete_project,
+            projects::api_get_project,
+            projects::api_get_meeting_projects,
+            projects::api_set_meeting_projects,
+            projects::api_resolve_project_suggestion,
+            projects::api_suggest_project,
             summary::meeting_items::api_update_meeting_item,
             summary::meeting_items::api_create_meeting_item,
             summary::meeting_items::api_delete_meeting_item,

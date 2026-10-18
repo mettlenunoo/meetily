@@ -7,7 +7,8 @@
 //! - Owners and due dates are left empty unless the transcript states them.
 //! - Replacing AI items never touches items the user created or edited.
 
-use chrono::Utc;
+use crate::dates::resolve_due;
+use chrono::{DateTime, Local, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
 use uuid::Uuid;
@@ -22,6 +23,8 @@ pub struct MeetingItem {
     pub description: Option<String>,
     pub owner: Option<String>,
     pub due_date: Option<String>,
+    /// `due_date` as a calendar date (YYYY-MM-DD), resolved from the meeting day or set by the user.
+    pub due_at: Option<String>,
     pub priority: Option<String>,
     pub status: String,
     pub evidence_quote: Option<String>,
@@ -142,10 +145,35 @@ pub fn clean_opt(v: Option<String>) -> Option<String> {
     })
 }
 
+/// The local calendar day a meeting took place, used to resolve "Friday" into a date.
+pub async fn meeting_day(pool: &SqlitePool, meeting_id: &str) -> Option<NaiveDate> {
+    let created: String = sqlx::query_scalar("SELECT created_at FROM meetings WHERE id = ?")
+        .bind(meeting_id)
+        .fetch_optional(pool)
+        .await
+        .ok()??;
+    parse_day(&created)
+}
+
+/// Accepts RFC 3339 ("2026-10-14T10:00:00Z") and SQLite's "2026-10-14 10:00:00".
+pub fn parse_day(timestamp: &str) -> Option<NaiveDate> {
+    if let Ok(dt) = DateTime::parse_from_rfc3339(timestamp) {
+        return Some(dt.with_timezone(&Local).date_naive());
+    }
+    NaiveDate::parse_from_str(timestamp.get(..10)?, "%Y-%m-%d").ok()
+}
+
 /// Turns proposed items into stored items: drops empty and duplicate titles, clears
-/// placeholder owners/dates, and verifies each quote against the transcript (taking the
-/// timestamp from where the quote really is). `kind` is "action" or "decision".
-pub fn ground_items(meeting_id: &str, proposed: Vec<(&str, RawItem)>, lines: &[TimedLine], source: &str) -> Vec<MeetingItem> {
+/// placeholder owners/dates, resolves spoken due dates against `meeting_day` (only when
+/// unambiguous), and verifies each quote against the transcript (taking the timestamp
+/// from where the quote really is). `kind` is "action" or "decision".
+pub fn ground_items(
+    meeting_id: &str,
+    proposed: Vec<(&str, RawItem)>,
+    lines: &[TimedLine],
+    source: &str,
+    meeting_day: Option<NaiveDate>,
+) -> Vec<MeetingItem> {
     let mut seen = std::collections::HashSet::new();
     let now = Utc::now().to_rfc3339();
     let mut items = Vec::new();
@@ -159,6 +187,12 @@ pub fn ground_items(meeting_id: &str, proposed: Vec<(&str, RawItem)>, lines: &[T
         let priority = clean_opt(raw.priority)
             .map(|p| p.to_lowercase())
             .filter(|p| matches!(p.as_str(), "high" | "medium" | "low"));
+        let due_date = clean_opt(raw.due);
+        let due_at = due_date
+            .as_deref()
+            .zip(meeting_day)
+            .and_then(|(spoken, day)| resolve_due(spoken, day))
+            .map(|d| d.format("%Y-%m-%d").to_string());
         items.push(MeetingItem {
             id: Uuid::new_v4().to_string(),
             meeting_id: meeting_id.to_string(),
@@ -166,7 +200,8 @@ pub fn ground_items(meeting_id: &str, proposed: Vec<(&str, RawItem)>, lines: &[T
             title,
             description: clean_opt(raw.description),
             owner: clean_opt(raw.owner),
-            due_date: clean_opt(raw.due),
+            due_date,
+            due_at,
             priority,
             status: "open".to_string(),
             evidence_quote: quote,
@@ -200,10 +235,10 @@ where
     E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
 {
     sqlx::query(
-        "INSERT INTO meeting_items (id, meeting_id, kind, title, description, owner, due_date, priority,
+        "INSERT INTO meeting_items (id, meeting_id, kind, title, description, owner, due_date, due_at, priority,
             status, evidence_quote, evidence_start_time, evidence_verified, source, user_edited,
             created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&it.id)
     .bind(&it.meeting_id)
@@ -212,6 +247,7 @@ where
     .bind(&it.description)
     .bind(&it.owner)
     .bind(&it.due_date)
+    .bind(&it.due_at)
     .bind(&it.priority)
     .bind(&it.status)
     .bind(&it.evidence_quote)
@@ -298,14 +334,41 @@ mod tests {
             ],
             &lines(),
             "ai",
+            NaiveDate::from_ymd_opt(2026, 10, 14),
         );
         assert_eq!(items.len(), 2, "duplicate title dropped");
         assert_eq!(items[0].owner.as_deref(), Some("Kwame"));
         assert_eq!(items[0].due_date, None, "placeholder due cleared");
+        assert_eq!(items[0].due_at, None);
         assert!(items[0].evidence_verified);
         assert_eq!(items[0].evidence_start_time, Some(65.5));
         assert_eq!(items[1].owner, None);
         assert!(!items[1].evidence_verified);
         assert_eq!(items[1].evidence_start_time, None, "no time for an unverified quote");
+    }
+
+    #[test]
+    fn grounding_resolves_spoken_due_dates_from_the_meeting_day() {
+        let item = |due: &str| RawItem {
+            title: format!("Task due {due}"),
+            due: Some(due.into()),
+            evidence_quote: Some("Kwame will send the item list".into()),
+            ..Default::default()
+        };
+        let wednesday = NaiveDate::from_ymd_opt(2026, 10, 14);
+        let items = ground_items("m1", vec![("action", item("Friday")), ("action", item("next week"))], &lines(), "ai", wednesday);
+        assert_eq!(items[0].due_date.as_deref(), Some("Friday"));
+        assert_eq!(items[0].due_at.as_deref(), Some("2026-10-16"));
+        assert_eq!(items[1].due_at, None, "ambiguous stays unresolved, spoken text kept");
+        assert_eq!(items[1].due_date.as_deref(), Some("next week"));
+        let no_day = ground_items("m1", vec![("action", item("Friday"))], &lines(), "ai", None);
+        assert_eq!(no_day[0].due_at, None);
+    }
+
+    #[test]
+    fn parses_meeting_timestamps() {
+        assert_eq!(parse_day("2026-10-14 10:00:00"), NaiveDate::from_ymd_opt(2026, 10, 14));
+        assert!(parse_day("2026-10-14T10:00:00Z").is_some());
+        assert_eq!(parse_day("nope"), None);
     }
 }

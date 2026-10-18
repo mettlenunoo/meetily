@@ -14,6 +14,7 @@ struct ItemRow {
     title: String,
     owner: Option<String>,
     due_date: Option<String>,
+    due_at: Option<String>,
     status: String,
     evidence_quote: Option<String>,
     evidence_start_time: Option<f64>,
@@ -59,8 +60,8 @@ pub async fn build_markdown(pool: &SqlitePool, meeting_id: &str) -> Result<(Stri
         .map_err(|e| e.to_string())?
         .flatten();
 
-    let items: Vec<ItemRow> = sqlx::query_as::<_, (String, String, Option<String>, Option<String>, String, Option<String>, Option<f64>, bool)>(
-        "SELECT kind, title, owner, due_date, status, evidence_quote, evidence_start_time, evidence_verified
+    let items: Vec<ItemRow> = sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, String, Option<String>, Option<f64>, bool)>(
+        "SELECT kind, title, owner, due_date, due_at, status, evidence_quote, evidence_start_time, evidence_verified
          FROM meeting_items WHERE meeting_id = ? AND status != 'dismissed'
          ORDER BY kind, COALESCE(evidence_start_time, 1e12), created_at",
     )
@@ -69,8 +70,8 @@ pub async fn build_markdown(pool: &SqlitePool, meeting_id: &str) -> Result<(Stri
     .await
     .map_err(|e| e.to_string())?
     .into_iter()
-    .map(|(kind, title, owner, due_date, status, evidence_quote, evidence_start_time, evidence_verified)| ItemRow {
-        kind, title, owner, due_date, status, evidence_quote, evidence_start_time, evidence_verified,
+    .map(|(kind, title, owner, due_date, due_at, status, evidence_quote, evidence_start_time, evidence_verified)| ItemRow {
+        kind, title, owner, due_date, due_at, status, evidence_quote, evidence_start_time, evidence_verified,
     })
     .collect();
 
@@ -113,7 +114,12 @@ pub async fn build_markdown(pool: &SqlitePool, meeting_id: &str) -> Result<(Stri
         };
         let mut meta = Vec::new();
         if let Some(o) = &it.owner { meta.push(format!("owner: {}", o)); }
-        if let Some(d) = &it.due_date { meta.push(format!("due: {}", d)); }
+        match (&it.due_date, &it.due_at) {
+            (Some(spoken), Some(date)) if spoken != date => meta.push(format!("due: {} ({})", spoken, date)),
+            (_, Some(date)) => meta.push(format!("due: {}", date)),
+            (Some(spoken), None) => meta.push(format!("due: {}", spoken)),
+            (None, None) => {}
+        }
         if !meta.is_empty() { line.push_str(&format!(" ({})", meta.join(", "))); }
         if let Some(q) = &it.evidence_quote {
             let at = it.evidence_start_time.map(|t| format!("[{}] ", format_clock(t))).unwrap_or_default();
