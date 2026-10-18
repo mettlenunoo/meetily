@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
-import { CheckCircle2, Circle, Gavel, ListTodo, Plus, Quote, ShieldAlert, Trash2, User, CalendarClock } from 'lucide-react';
+import { CheckCircle2, Circle, Gavel, ListTodo, Plus, Quote, ShieldAlert, Trash2, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DueDateButton } from '@/components/ActionItems/DueDateButton';
 
 export interface MeetingItem {
   id: string;
@@ -14,7 +15,10 @@ export interface MeetingItem {
   title: string;
   description: string | null;
   owner: string | null;
+  /** As spoken, e.g. "Friday" */
   dueDate: string | null;
+  /** The exact date, YYYY-MM-DD, when known */
+  dueAt: string | null;
   priority: 'high' | 'medium' | 'low' | null;
   status: 'open' | 'done' | 'dismissed';
   evidenceQuote: string | null;
@@ -52,7 +56,7 @@ export function MeetingItemsPanel({ meetingId, refreshKey }: MeetingItemsPanelPr
   const [loading, setLoading] = useState(true);
   const [newAction, setNewAction] = useState('');
   // Inline editor for owner / due date (window.prompt is unavailable in the Tauri webview)
-  const [editing, setEditing] = useState<{ id: string; field: 'owner' | 'dueDate'; value: string } | null>(null);
+  const [editing, setEditing] = useState<{ id: string; field: 'owner'; value: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -70,11 +74,13 @@ export function MeetingItemsPanel({ meetingId, refreshKey }: MeetingItemsPanelPr
     load();
   }, [load, refreshKey]);
 
-  const update = async (id: string, update: Partial<Pick<MeetingItem, 'title' | 'owner' | 'dueDate' | 'status'>>) => {
+  const update = async (id: string, update: Partial<Pick<MeetingItem, 'title' | 'owner' | 'dueDate' | 'dueAt' | 'status'>>) => {
     // Optimistic update; reload on failure
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...update } : it)));
     try {
-      await invoke('api_update_meeting_item', { id, update });
+      // The backend treats '' as "clear this field"
+      const payload = 'dueAt' in update ? { ...update, dueAt: update.dueAt ?? '' } : update;
+      await invoke('api_update_meeting_item', { id, update: payload });
     } catch (error) {
       toast.error('Could not update item');
       console.error(error);
@@ -112,7 +118,7 @@ export function MeetingItemsPanel({ meetingId, refreshKey }: MeetingItemsPanelPr
     }
   };
 
-  const startEdit = (item: MeetingItem, field: 'owner' | 'dueDate') =>
+  const startEdit = (item: MeetingItem, field: 'owner') =>
     setEditing({ id: item.id, field, value: item[field] ?? '' });
 
   const commitEdit = () => {
@@ -160,7 +166,7 @@ export function MeetingItemsPanel({ meetingId, refreshKey }: MeetingItemsPanelPr
     );
   };
 
-  const renderEditor = (item: MeetingItem, field: 'owner' | 'dueDate', placeholder: string) =>
+  const renderEditor = (item: MeetingItem, field: 'owner', placeholder: string) =>
     editing && editing.id === item.id && editing.field === field ? (
       <input
         autoFocus
@@ -190,17 +196,8 @@ export function MeetingItemsPanel({ meetingId, refreshKey }: MeetingItemsPanelPr
         {item.owner ?? 'No owner'}
       </button>
       )}
-      {renderEditor(item, 'dueDate', 'e.g. Friday') ?? (
-      <button
-        type="button"
-        onClick={() => startEdit(item, 'dueDate')}
-        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 border ${
-          item.dueDate ? 'border-purple-200 bg-purple-50 text-purple-700' : 'border-dashed border-gray-300 text-gray-400'
-        }`}
-      >
-        <CalendarClock className="w-3 h-3" />
-        {item.dueDate ?? 'No due date'}
-      </button>
+      {item.kind === 'action' && (
+        <DueDateButton item={item} onChange={(dueAt) => update(item.id, { dueAt: dueAt || null })} />
       )}
       {item.priority && (
         <span

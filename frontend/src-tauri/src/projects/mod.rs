@@ -128,6 +128,20 @@ fn validate(input: &ProjectInput) -> Result<(), String> {
     Ok(())
 }
 
+/// True when the meeting is linked (as main or extra) to a local-only project. Errors count
+/// as local-only, so a database problem can never cause a recording to be sent out.
+pub async fn is_local_only(pool: &SqlitePool, meeting_id: &str) -> bool {
+    sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM meeting_projects mp JOIN projects p ON p.id = mp.project_id
+         WHERE mp.meeting_id = ? AND p.privacy = 'local'",
+    )
+    .bind(meeting_id)
+    .fetch_one(pool)
+    .await
+    .map(|n| n > 0)
+    .unwrap_or(true)
+}
+
 pub async fn get_project(pool: &SqlitePool, id: &str) -> Result<Project, String> {
     sqlx::query_as::<_, Project>("SELECT * FROM projects WHERE id = ?")
         .bind(id)
@@ -531,6 +545,15 @@ mod tests {
         let meetings: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM meetings").fetch_one(&pool).await.unwrap();
         let links: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM meeting_projects").fetch_one(&pool).await.unwrap();
         assert_eq!((meetings, links), (1, 0));
+    }
+
+    #[tokio::test]
+    async fn local_only_follows_any_link() {
+        let pool = db().await;
+        assert!(!is_local_only(&pool, "m1").await);
+        sqlx::query("UPDATE projects SET privacy = 'local' WHERE id = 'p2'").execute(&pool).await.unwrap();
+        set_meeting_projects(&pool, "m1", Some("p1"), &["p2".into()]).await.unwrap();
+        assert!(is_local_only(&pool, "m1").await, "an extra local project is enough");
     }
 
     #[tokio::test]

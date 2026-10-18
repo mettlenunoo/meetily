@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, File, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload } from 'lucide-react';
+import { ChevronDown, ChevronRight, File, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, FolderKanban, ListTodo, GraduationCap } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSidebar } from './SidebarProvider';
 import type { CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
@@ -31,6 +31,13 @@ import Info from '../Info';
 import { ComplianceNotification } from '../ComplianceNotification';
 import { Input } from '../ui/input';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '../ui/input-group';
+import { projectsApi } from '@/lib/projects';
+
+const NAV_LINKS = [
+  { href: '/projects', label: 'Projects', Icon: FolderKanban },
+  { href: '/action-items', label: 'Action items', Icon: ListTodo },
+  { href: '/study', label: 'Study', Icon: GraduationCap },
+] as const;
 
 interface SidebarItem {
   id: string;
@@ -113,6 +120,26 @@ const Sidebar: React.FC = () => {
 
 
   const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; itemId: string | null }>({ isOpen: false, itemId: null });
+
+  // Overdue action items, shown as a badge on "Action items"
+  const [overdueCount, setOverdueCount] = useState(0);
+  useEffect(() => {
+    const refresh = () =>
+      projectsApi
+        .actionItems({ due: 'overdue' })
+        .then((items) => setOverdueCount(items.length))
+        .catch(() => setOverdueCount(0)); // database not ready yet (first launch)
+    refresh();
+    window.addEventListener('projects-changed', refresh);
+    const timer = setInterval(refresh, 10 * 60 * 1000);
+    return () => {
+      window.removeEventListener('projects-changed', refresh);
+      clearInterval(timer);
+    };
+  }, [pathname]);
+
+  const isActivePath = (href: string) =>
+    pathname === href || (href === '/projects' && pathname === '/project');
 
   useEffect(() => {
     // Note: Don't set hardcoded defaults - let DB be the source of truth
@@ -480,6 +507,27 @@ const Sidebar: React.FC = () => {
             </TooltipContent>
           </Tooltip>
 
+          {NAV_LINKS.map(({ href, label, Icon }) => (
+            <Tooltip key={href}>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => router.push(href)}
+                  className={`relative p-2 rounded-lg transition-colors duration-150 ${isActivePath(href) ? 'bg-gray-100' : 'hover:bg-gray-100'}`}
+                >
+                  <Icon className="w-5 h-5 text-gray-600" />
+                  {href === '/action-items' && overdueCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] leading-4 text-white">
+                      {overdueCount}
+                    </span>
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>{label}{href === '/action-items' && overdueCount > 0 ? ` (${overdueCount} overdue)` : ''}</p>
+              </TooltipContent>
+            </Tooltip>
+          ))}
+
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -747,6 +795,27 @@ const Sidebar: React.FC = () => {
               >
                 <Home className="w-4 h-4 mr-2" />
                 <span>Home</span>
+              </div>
+            )}
+            {!isCollapsed && (
+              <div className="mx-3 mt-1 space-y-0.5">
+                {NAV_LINKS.map(({ href, label, Icon }) => (
+                  <button
+                    key={href}
+                    onClick={() => router.push(href)}
+                    className={`flex w-full items-center rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                      isActivePath(href) ? 'bg-gray-100 font-medium text-gray-900' : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 mr-2" />
+                    <span>{label}</span>
+                    {href === '/action-items' && overdueCount > 0 && (
+                      <span className="ml-auto rounded-full bg-red-100 px-1.5 text-xs font-medium text-red-700" title="Overdue">
+                        {overdueCount}
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
             )}
           </div>

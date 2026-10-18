@@ -359,6 +359,16 @@ impl SummaryService {
             }
         };
 
+        // Recordings in a local-only project never go to a cloud model.
+        if !matches!(provider, LLMProvider::Ollama | LLMProvider::BuiltInAI)
+            && crate::projects::is_local_only(&pool, &meeting_id).await
+        {
+            let err_msg = "This meeting is in a local-only project, so it can't be sent to a cloud model. \
+                           Summarise it with Ollama or the built-in model, or change the project's privacy setting.";
+            Self::fail_and_cleanup(&pool, &meeting_id, started_at, err_msg).await;
+            return;
+        }
+
         // Validate and setup api_key, Flexible for Ollama, BuiltInAI, and CustomOpenAI
         let api_key = if provider == LLMProvider::Ollama || provider == LLMProvider::BuiltInAI || provider == LLMProvider::CustomOpenAI {
             // These providers don't require API keys from the standard database column
