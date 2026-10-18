@@ -85,6 +85,14 @@ Checklist:
 - [ ] `meeting.md` appears in the meeting folder and opens cleanly in a Markdown viewer.
 - [ ] 60-minute meeting: summary and items complete; no memory blow-up.
 
+Phase 1 (projects and tracking):
+- [ ] Create a project with people and keywords; record a meeting that mentions them. The meeting page shows "Looks like …" with the reason, and nothing is filed until you press "File it there".
+- [ ] Main + extra project: the project page lists the meeting; "also linked" shows for the extra.
+- [ ] A Wednesday meeting with "by Friday" shows that Friday's date; "next week" shows "(pick a date)".
+- [ ] Action items page: the overdue filter, the date picker and ticking done all work; the sidebar badge counts overdue items.
+- [ ] A Mac notification for overdue or due-tomorrow items (08:00–20:00, once a day per item).
+- [ ] Local-only project: its meetings are missing from Claude (hearken-mcp), and a Claude/OpenAI summary of them is refused.
+
 ## Roadmap (agreed 2026-10-18)
 
 The organising idea is that **everything belongs to a project**: recordings, Slack threads, tasks, decisions and documents. Courses live in a separate **Study** area in the UI but share the same storage, so search, Claude, Slack and reports work the same for both.
@@ -98,7 +106,7 @@ Decisions:
 | # | Phase | Contents |
 |---|---|---|
 | 0 | Mac test checklist | See "Testing on the Mac". Audio integrity before anything else |
-| 1 | **Projects + action-item tracking** | `projects` table (`kind`: work, client, personal or course; people, Slack channels, keywords, status, privacy); meeting links (main + extras); suggest-and-confirm after each recording; project page (timeline, open actions by person, decision log, running brief, "what changed this week"); sidebar grouping; MCP tools (`list_projects`, `get_project`, `assign_meeting_to_project`); local-only projects hidden from MCP. **Tracking:** an Action items page across all meetings (filter by project, person, status, due); spoken due dates resolved to real dates from the meeting date, with the spoken text kept and editable; overdue and due-soon Mac notifications (local); MCP `update_action_item` so Claude can mark items done or move dates on request |
+| 1 | **Projects + action-item tracking**: built 2026-10-19, not yet tested on the Mac | `projects` table (`kind`: work, client, personal or course; people, Slack channels, keywords, status, privacy); meeting links (main + extras); suggest-and-confirm after each recording; project page (timeline, open actions by person, decision log, running brief, "what changed this week"); sidebar grouping; MCP tools (`list_projects`, `get_project`, `assign_meeting_to_project`); local-only projects hidden from MCP. **Tracking:** an Action items page across all meetings (filter by project, person, status, due); spoken due dates resolved to real dates from the meeting date, with the spoken text kept and editable; overdue and due-soon Mac notifications (local); MCP `update_action_item` so Claude can mark items done or move dates on request |
 | 2 | **Study area and recording types** | Types: meeting, lecture, interview, voice note; type picks the template and what's extracted. Lecture notes (topic outline with `[mm:ss]`, definitions, examples, formulas, "exam hints", questions, assignments as tasks under the course); bookmark hotkey while recording; audio player with click-to-seek from transcript lines and items; mic-only mode; 2–3 h sessions |
 | 3 | **Documents** | Several documents per recording (summary, minutes, formal report, lecture notes…) from a "Generate…" menu; new templates next to the existing six; project status reports; export to Markdown, PDF and Word; MCP `save_document` |
 | 4 | **Slack ↔ projects** (with desmonds-bot) | Hearken owns the project list and the bot gets a copy; channel → project mapping (ask when unclear); the bot tags tasks, decisions and tagged threads with the project; Hearken pulls them into the project timeline; "Send to Slack" (summary + items; transcript and audio stay local) |
