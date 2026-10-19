@@ -43,6 +43,7 @@ pub mod config;
 pub mod console_utils;
 pub mod database;
 pub mod documents;
+pub mod model_eval;
 pub mod intelligence;
 pub mod notifications;
 pub mod ollama;
@@ -777,6 +778,8 @@ pub fn run() {
             calendar::api_set_calendar,
             calendar::api_upcoming_events,
             calendar::api_meeting_event,
+            model_eval::api_compare_models,
+            model_eval::api_model_comparison,
             recordings::api_set_recording_type,
             recordings::api_get_meeting_media,
             recordings::bookmarks::api_add_live_bookmark,

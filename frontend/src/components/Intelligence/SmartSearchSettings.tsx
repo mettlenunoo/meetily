@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { listen } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
 import { Brain, Download, Loader2, RefreshCw } from 'lucide-react';
@@ -102,6 +103,9 @@ export function SmartSearchSettings() {
           {busy ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />} Index changed meetings now
         </Button>
       )}
+      <Link href="/model-check" className="block text-sm text-blue-700 hover:underline">
+        Compare transcription models on your own recordings (accuracy and speed) →
+      </Link>
       <p className="text-xs text-gray-500">
         Ask Hearken works without this too (it then uses keyword search), but finds less. Answers use your summary
         model; with a cloud model, local-only projects are left out.
