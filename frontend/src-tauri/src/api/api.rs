@@ -997,6 +997,10 @@ pub async fn api_save_transcript<R: Runtime>(
                 meeting_id
             );
             crate::recordings::bookmarks::persist_pending(pool, &meeting_id).await;
+            // Name it after the calendar event it happened during (if calendar is on).
+            if let Err(e) = crate::calendar::attach_event(&_app, pool, &meeting_id).await {
+                log_info!("No calendar event linked: {}", e);
+            }
             Ok(serde_json::json!({
                 "status": "success",
                 "message": "Transcript saved successfully",

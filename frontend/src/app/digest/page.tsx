@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, CalendarRange, CheckCircle2, ChevronLeft, ChevronRight, Gavel, ListTodo, Video } from 'lucide-react';
 import { intelligenceApi, type DigestItem, type WeekDigest } from '@/lib/intelligence';
+import { calendarApi, type CalEvent } from '@/lib/calendar';
 import { formatDue } from '@/lib/projects';
 
 function range(d: WeekDigest): string {
@@ -20,6 +21,8 @@ export default function DigestPage() {
   const [weeksBack, setWeeksBack] = useState(0);
   const [digest, setDigest] = useState<WeekDigest | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [today, setToday] = useState<CalEvent[]>([]);
+  useEffect(() => { calendarApi.upcoming(12).then(setToday).catch(() => setToday([])); }, []);
 
   useEffect(() => {
     setDigest(null);
@@ -85,6 +88,24 @@ export default function DigestPage() {
               </div>
             )}
 
+            {weeksBack === 0 && today.length > 0 && (
+              <section className="rounded-lg border border-gray-200 bg-white p-4">
+                <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-900">
+                  <CalendarRange className="w-4 h-4" /> Coming up today
+                </h2>
+                <ul className="space-y-1.5">
+                  {today.map((e) => (
+                    <li key={e.id + e.start} className="text-sm text-gray-900">
+                      <span className="mr-2 font-mono text-xs text-gray-500">
+                        {new Date(e.start * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      {e.title}
+                      {e.attendees.length > 0 && <span className="ml-2 text-xs text-gray-500">with {e.attendees.slice(0, 4).join(', ')}{e.attendees.length > 4 ? '…' : ''}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             {weeksBack === 0 && section('Overdue', AlertCircle, digest.overdue, 'Nothing overdue.', true, 'text-red-700')}
             {weeksBack === 0 && section('Due in the next 7 days', ListTodo, digest.dueSoon, 'Nothing due in the next week.')}
 

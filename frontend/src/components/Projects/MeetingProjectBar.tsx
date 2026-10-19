@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Check, ChevronDown, FolderKanban, GraduationCap, Lightbulb, Lock, Plus, Send, X } from 'lucide-react';
 import { ShareToSlackDialog } from '@/components/Slack/ShareToSlackDialog';
+import { calendarApi, type MeetingEvent } from '@/lib/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { ProjectDialog } from './ProjectDialog';
@@ -41,6 +42,8 @@ export function MeetingProjectBar({ meetingId, recordingType, onRecordingTypeCha
   const [pickerOpen, setPickerOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [calEvent, setCalEvent] = useState<MeetingEvent | null>(null);
+  useEffect(() => { calendarApi.forMeeting(meetingId).then(setCalEvent).catch(() => setCalEvent(null)); }, [meetingId]);
   const askedFor = useRef<string | null>(null);
 
   const load = useCallback(async () => {
@@ -177,6 +180,14 @@ export function MeetingProjectBar({ meetingId, recordingType, onRecordingTypeCha
           </span>
         ))}
         {picker}
+        {calEvent && (
+          <span
+            className="inline-flex max-w-[22rem] items-center gap-1 truncate text-xs text-gray-500"
+            title={`${calEvent.eventTitle}${calEvent.calendarName ? ` (${calEvent.calendarName})` : ''}${calEvent.attendees ? `\nInvited: ${calEvent.attendees}` : ''}`}
+          >
+            📅 {calEvent.attendees ? `with ${calEvent.attendees}` : calEvent.eventTitle}
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-2">
           {!(state.primary?.privacy === 'local' || state.extras.some((p) => p.privacy === 'local')) && (
             <button

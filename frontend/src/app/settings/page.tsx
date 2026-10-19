@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical, MessageSquare, Brain } from 'lucide-react';
+import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical, MessageSquare, Brain, CalendarDays } from 'lucide-react';
 import { BotLinkSettings } from '@/components/Slack/BotLinkSettings';
 import { SmartSearchSettings } from '@/components/Intelligence/SmartSearchSettings';
+import { CalendarSettingsPanel } from '@/components/Calendar/CalendarSettings';
 import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { motion } from 'framer-motion';
@@ -22,6 +23,7 @@ const TABS = [
   { value: 'Transcriptionmodels', label: 'Transcription', icon: DatabaseIcon },
   { value: 'summaryModels', label: 'Summary', icon: SparkleIcon },
   { value: 'smart', label: 'Smart search', icon: Brain },
+  { value: 'calendar', label: 'Calendar', icon: CalendarDays },
   { value: 'slack', label: 'Slack bot', icon: MessageSquare },
   { value: 'beta', label: 'Beta', icon: FlaskConical }
 ] as const;
@@ -127,6 +129,9 @@ export default function SettingsPage() {
             </TabsContent>
             <TabsContent value="summaryModels">
               <SummaryModelSettings />
+            </TabsContent>
+            <TabsContent value="calendar" className="mt-6">
+              <CalendarSettingsPanel />
             </TabsContent>
             <TabsContent value="smart" className="mt-6">
               <SmartSearchSettings />

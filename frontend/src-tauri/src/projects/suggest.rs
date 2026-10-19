@@ -136,7 +136,22 @@ async fn meeting_text(pool: &SqlitePool, meeting_id: &str) -> Result<(String, St
     .fetch_all(pool)
     .await
     .map_err(|e| e.to_string())?;
-    Ok((title, lines.join(" ")))
+    // The calendar invitation (title and invitees) counts as part of the meeting.
+    let invite: Option<(String, Option<String>)> =
+        sqlx::query_as("SELECT event_title, attendees FROM meeting_calendar WHERE meeting_id = ?")
+            .bind(meeting_id)
+            .fetch_optional(pool)
+            .await
+            .unwrap_or(None);
+    let mut text = lines.join(" ");
+    let title = match invite {
+        Some((event, attendees)) => {
+            text.push_str(&format!(" {}", attendees.unwrap_or_default().replace(',', " ")));
+            if event == title { title } else { format!("{} {}", title, event) }
+        }
+        None => title,
+    };
+    Ok((title, text))
 }
 
 async fn store(pool: &SqlitePool, meeting_id: &str, project_id: &str, reason: &str, source: &str) -> Result<(), String> {

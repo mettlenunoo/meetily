@@ -38,6 +38,7 @@ pub(crate) use perf_trace;
 pub mod analytics;
 pub mod api;
 pub mod audio;
+pub mod calendar;
 pub mod config;
 pub mod console_utils;
 pub mod database;
@@ -525,6 +526,8 @@ pub fn run() {
             projects::reminders::start(_app.handle().clone());
             // Search-by-meaning indexing and the Friday digest notification
             intelligence::start(_app.handle().clone());
+            // "Record it?" reminders when a calendar event starts (if switched on)
+            calendar::start_reminders(_app.handle().clone());
 
             // ⌥⌘B marks the current moment of a recording as important, from any app.
             {
@@ -770,6 +773,10 @@ pub fn run() {
             projects::api_resolve_project_suggestion,
             projects::api_suggest_project,
             projects::people::api_list_people,
+            calendar::api_calendar_status,
+            calendar::api_set_calendar,
+            calendar::api_upcoming_events,
+            calendar::api_meeting_event,
             recordings::api_set_recording_type,
             recordings::api_get_meeting_media,
             recordings::bookmarks::api_add_live_bookmark,
