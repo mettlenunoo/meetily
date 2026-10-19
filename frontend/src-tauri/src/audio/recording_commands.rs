@@ -95,6 +95,7 @@ impl Drop for StoppingGuard {
 fn finalize_recording_start() {
     info!("🔍 Setting IS_RECORDING to true and resetting SPEECH_DETECTED_EMITTED");
     crate::recordings::bookmarks::clear_pending(); // bookmarks belong to one recording
+    crate::recordings::consent::clear_pending();
     IS_RECORDING.store(true, Ordering::SeqCst);
     MIC_FALLBACK_FAILED_ATTEMPTS.store(0, Ordering::SeqCst); // fresh mic-recovery budget per session
     reset_speech_detected_flag(); // reset speech-detected emit latch for the new session

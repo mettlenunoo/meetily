@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Check, ChevronDown, FolderKanban, GraduationCap, Lightbulb, Lock, Plus, Send, X } from 'lucide-react';
 import { ShareToSlackDialog } from '@/components/Slack/ShareToSlackDialog';
 import { calendarApi, type MeetingEvent } from '@/lib/calendar';
+import { invoke } from '@tauri-apps/api/core';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { ProjectDialog } from './ProjectDialog';
@@ -43,6 +44,8 @@ export function MeetingProjectBar({ meetingId, recordingType, onRecordingTypeCha
   const [creating, setCreating] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [calEvent, setCalEvent] = useState<MeetingEvent | null>(null);
+  const [consentAt, setConsentAt] = useState<string | null>(null);
+  useEffect(() => { invoke<string | null>('api_get_consent', { meetingId }).then(setConsentAt).catch(() => setConsentAt(null)); }, [meetingId]);
   useEffect(() => { calendarApi.forMeeting(meetingId).then(setCalEvent).catch(() => setCalEvent(null)); }, [meetingId]);
   const askedFor = useRef<string | null>(null);
 
@@ -186,6 +189,11 @@ export function MeetingProjectBar({ meetingId, recordingType, onRecordingTypeCha
             title={`${calEvent.eventTitle}${calEvent.calendarName ? ` (${calEvent.calendarName})` : ''}${calEvent.attendees ? `\nInvited: ${calEvent.attendees}` : ''}`}
           >
             📅 {calEvent.attendees ? `with ${calEvent.attendees}` : calEvent.eventTitle}
+          </span>
+        )}
+        {consentAt && (
+          <span className="text-xs text-green-700" title={`You confirmed you told everyone at ${new Date(consentAt).toLocaleTimeString()}`}>
+            ✓ everyone told
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">

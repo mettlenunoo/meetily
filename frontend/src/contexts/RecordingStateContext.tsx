@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { recordingService } from '@/services/recordingService';
 import { toast } from 'sonner';
+import { invoke } from '@tauri-apps/api/core';
 
 /**
  * Recording state synchronized with backend
@@ -141,6 +142,17 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
         // Recording started
         const unlistenStarted = await recordingService.onRecordingStarted(() => {
           console.log('[RecordingStateContext] Recording started event');
+          // A reminder to tell everyone; confirming is saved with the meeting. Never blocks recording.
+          toast('Recording started', {
+            description: 'Let everyone know you’re recording.',
+            duration: 30000,
+            action: {
+              label: 'I’ve told everyone',
+              onClick: () => {
+                invoke('api_confirm_consent').catch((e) => console.warn('Consent not saved:', e));
+              },
+            },
+          });
           setState(prev => ({
             ...prev,
             isRecording: true,

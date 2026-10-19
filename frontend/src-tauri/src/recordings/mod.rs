@@ -2,6 +2,7 @@
 //! moments, and access to a meeting's audio files for the in-app player.
 
 pub mod bookmarks;
+pub mod consent;
 pub mod speakers;
 
 use crate::state::AppState;

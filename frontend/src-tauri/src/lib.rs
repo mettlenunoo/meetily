@@ -38,11 +38,13 @@ pub(crate) use perf_trace;
 pub mod analytics;
 pub mod api;
 pub mod audio;
+pub mod backup;
 pub mod calendar;
 pub mod config;
 pub mod console_utils;
 pub mod database;
 pub mod documents;
+pub mod inbox;
 pub mod model_eval;
 pub mod intelligence;
 pub mod notifications;
@@ -529,6 +531,10 @@ pub fn run() {
             intelligence::start(_app.handle().clone());
             // "Record it?" reminders when a calendar event starts (if switched on)
             calendar::start_reminders(_app.handle().clone());
+            // Hearken Inbox: import recordings saved from a phone (if switched on)
+            inbox::start(_app.handle().clone());
+            // Monthly reminder when nothing backs the recordings up
+            backup::start(_app.handle().clone());
 
             // ⌥⌘B marks the current moment of a recording as important, from any app.
             {
@@ -780,6 +786,11 @@ pub fn run() {
             calendar::api_meeting_event,
             model_eval::api_compare_models,
             model_eval::api_model_comparison,
+            inbox::api_inbox_status,
+            inbox::api_set_inbox,
+            inbox::api_reveal_inbox,
+            backup::api_backup_status,
+            backup::api_backup_database,
             recordings::api_set_recording_type,
             recordings::api_get_meeting_media,
             recordings::bookmarks::api_add_live_bookmark,
@@ -787,6 +798,8 @@ pub fn run() {
             recordings::bookmarks::api_add_bookmark,
             recordings::bookmarks::api_delete_bookmark,
             recordings::speakers::api_label_speakers,
+            recordings::consent::api_confirm_consent,
+            recordings::consent::api_get_consent,
             documents::api_generate_document,
             documents::api_list_documents,
             documents::api_get_document,

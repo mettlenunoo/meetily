@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical, MessageSquare, Brain, CalendarDays } from 'lucide-react';
+import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical, MessageSquare, Brain, CalendarDays, Inbox, ShieldCheck } from 'lucide-react';
 import { BotLinkSettings } from '@/components/Slack/BotLinkSettings';
 import { SmartSearchSettings } from '@/components/Intelligence/SmartSearchSettings';
 import { CalendarSettingsPanel } from '@/components/Calendar/CalendarSettings';
+import { InboxSettingsPanel } from '@/components/Inbox/InboxSettings';
+import { BackupSettingsPanel } from '@/components/Backup/BackupSettings';
 import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { motion } from 'framer-motion';
@@ -22,9 +24,11 @@ const TABS = [
   { value: 'recording', label: 'Recordings', icon: Mic },
   { value: 'Transcriptionmodels', label: 'Transcription', icon: DatabaseIcon },
   { value: 'summaryModels', label: 'Summary', icon: SparkleIcon },
+  { value: 'inbox', label: 'Inbox', icon: Inbox },
   { value: 'smart', label: 'Smart search', icon: Brain },
   { value: 'calendar', label: 'Calendar', icon: CalendarDays },
   { value: 'slack', label: 'Slack bot', icon: MessageSquare },
+  { value: 'backups', label: 'Backups', icon: ShieldCheck },
   { value: 'beta', label: 'Beta', icon: FlaskConical }
 ] as const;
 
@@ -91,7 +95,7 @@ export default function SettingsPage() {
         <div className="max-w-6xl mx-auto p-8 pt-6">
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="bg-transparent relative rounded-none border-b border-gray-200 p-0 h-auto">
+            <TabsList className="bg-transparent relative rounded-none border-b border-gray-200 p-0 h-auto max-w-full justify-start overflow-x-auto overflow-y-hidden">
               {TABS.map((tab, index) => {
                 const Icon = tab.icon;
                 return (
@@ -132,6 +136,12 @@ export default function SettingsPage() {
             </TabsContent>
             <TabsContent value="calendar" className="mt-6">
               <CalendarSettingsPanel />
+            </TabsContent>
+            <TabsContent value="inbox" className="mt-6">
+              <InboxSettingsPanel />
+            </TabsContent>
+            <TabsContent value="backups" className="mt-6">
+              <BackupSettingsPanel />
             </TabsContent>
             <TabsContent value="smart" className="mt-6">
               <SmartSearchSettings />
