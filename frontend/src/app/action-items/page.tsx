@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ListTodo, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -19,14 +20,17 @@ const DUE_OPTIONS: { value: DueFilter; label: string }[] = [
 ];
 
 /** Every action item across all meetings, soonest due first. */
-export default function ActionItemsPage() {
+function ActionItems() {
+  const ownerParam = useSearchParams().get('owner');
   const [items, setItems] = useState<TrackedItem[]>([]);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<StatusFilter>('open');
   const [due, setDue] = useState<DueFilter>('any');
   const [projectId, setProjectId] = useState<string>('all');
-  const [owner, setOwner] = useState('');
+  const [owner, setOwner] = useState(ownerParam ?? '');
+  // Exact name when opened from People; typing switches to "contains"
+  const [ownerExact, setOwnerExact] = useState(!!ownerParam);
 
   const load = useCallback(async () => {
     try {
@@ -34,6 +38,7 @@ export default function ActionItemsPage() {
         status,
         due,
         owner: owner.trim() || undefined,
+        ownerExact,
         projectId: projectId === 'all' ? null : projectId,
       });
       setItems(result);
@@ -42,7 +47,7 @@ export default function ActionItemsPage() {
     } finally {
       setLoading(false);
     }
-  }, [status, due, owner, projectId]);
+  }, [status, due, owner, ownerExact, projectId]);
 
   useEffect(() => {
     const t = setTimeout(load, owner ? 250 : 0); // debounce typing in the owner box
@@ -103,7 +108,7 @@ export default function ActionItemsPage() {
           </Select>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2 top-2.5 w-4 h-4 text-gray-400" />
-            <Input value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="Owner" className="w-40 bg-white pl-8" />
+            <Input value={owner} onChange={(e) => { setOwner(e.target.value); setOwnerExact(false); }} placeholder="Owner" className="w-40 bg-white pl-8" />
           </div>
           {status !== 'done' && (
             <span className="ml-auto text-sm text-gray-500">
@@ -129,5 +134,13 @@ export default function ActionItemsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ActionItemsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ActionItems />
+    </Suspense>
   );
 }

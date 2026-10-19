@@ -69,6 +69,8 @@ export interface ActionItemFilter {
   status?: 'open' | 'done' | 'dismissed' | 'all';
   projectId?: string | null; // a project id, or 'none'
   owner?: string;
+  /** Match the whole name (links from People) instead of part of it */
+  ownerExact?: boolean;
   due?: 'any' | 'overdue' | 'today' | 'week' | 'undated';
   kind?: 'action' | 'decision' | 'all';
 }

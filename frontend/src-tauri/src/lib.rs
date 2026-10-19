@@ -769,6 +769,7 @@ pub fn run() {
             projects::api_set_meeting_projects,
             projects::api_resolve_project_suggestion,
             projects::api_suggest_project,
+            projects::people::api_list_people,
             recordings::api_set_recording_type,
             recordings::api_get_meeting_media,
             recordings::bookmarks::api_add_live_bookmark,

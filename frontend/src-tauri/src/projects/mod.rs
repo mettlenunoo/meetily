@@ -3,6 +3,7 @@
 //! is filed until the user accepts. Courses are projects with kind 'course' (the UI shows
 //! them in the Study area). Projects marked 'local' are hidden from hearken-mcp.
 
+pub mod people;
 pub mod reminders;
 pub mod suggest;
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, File, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, FolderKanban, ListTodo, GraduationCap, MessageCircleQuestion, CalendarRange, Brain } from 'lucide-react';
+import { ChevronDown, ChevronRight, File, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, FolderKanban, ListTodo, GraduationCap, MessageCircleQuestion, CalendarRange, Brain, Users } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSidebar } from './SidebarProvider';
 import type { CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
@@ -38,6 +38,7 @@ const NAV_LINKS = [
   { href: '/ask', label: 'Ask Hearken', Icon: MessageCircleQuestion },
   { href: '/projects', label: 'Projects', Icon: FolderKanban },
   { href: '/action-items', label: 'Action items', Icon: ListTodo },
+  { href: '/people', label: 'People', Icon: Users },
   { href: '/digest', label: 'Weekly digest', Icon: CalendarRange },
   { href: '/study', label: 'Study', Icon: GraduationCap },
 ] as const;

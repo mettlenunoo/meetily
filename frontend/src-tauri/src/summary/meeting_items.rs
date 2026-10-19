@@ -279,6 +279,8 @@ pub struct ActionItemFilter {
     pub project_id: Option<String>,
     /// Case-insensitive part of the owner's name
     pub owner: Option<String>,
+    /// Match the owner's whole name instead (links from the People page)
+    pub owner_exact: Option<bool>,
     /// "overdue", "today", "week" (due within 7 days), "undated" or "any" (default)
     pub due: Option<String>,
     /// "action" (default), "decision" or "all"
@@ -305,7 +307,8 @@ pub async fn api_list_action_items(
          WHERE (?1 = 'all' OR i.status = ?1)
            AND (?2 = 'all' OR i.kind = ?2)
            AND (?3 IS NULL OR (?3 = 'none' AND p.id IS NULL) OR p.id = ?3)
-           AND (?4 IS NULL OR lower(COALESCE(i.owner, '')) LIKE ?4)
+           AND (?4 IS NULL OR (CASE WHEN ?8 THEN lower(trim(COALESCE(i.owner, ''))) = ?9
+                                    ELSE lower(COALESCE(i.owner, '')) LIKE ?4 END))
            AND (CASE ?5
                   WHEN 'overdue' THEN i.due_at IS NOT NULL AND i.due_at < ?6
                   WHEN 'today' THEN i.due_at = ?6
@@ -322,6 +325,8 @@ pub async fn api_list_action_items(
         .bind(f.due.as_deref().unwrap_or("any"))
         .bind(today.format("%Y-%m-%d").to_string())
         .bind(week.format("%Y-%m-%d").to_string())
+        .bind(f.owner_exact.unwrap_or(false))
+        .bind(f.owner.as_deref().map(|o| o.trim().to_lowercase()).unwrap_or_default())
         .fetch_all(state.db_manager.pool())
         .await
         .map_err(|e| e.to_string())
