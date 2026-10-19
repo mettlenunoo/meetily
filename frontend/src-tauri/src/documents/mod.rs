@@ -9,11 +9,10 @@ use crate::summary::llm_client::LLMProvider;
 use crate::summary::processor::{clean_llm_markdown_detailed, generate_meeting_summary};
 use chrono::Utc;
 use hearken_core::export::summary_markdown;
-use hearken_core::items::{format_clock, load_timed_transcript, render_transcript};
+use hearken_core::items::{load_timed_transcript, render_transcript};
 use log::{error, info};
 use serde::Serialize;
 use sqlx::{FromRow, SqlitePool};
-use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 use uuid::Uuid;
 
