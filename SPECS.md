@@ -73,8 +73,11 @@ meeting.md       readable export (after a summary is generated)
 ```bash
 cd frontend
 pnpm install
-./clean_run.sh            # dev build with logs
+./build-hearken.sh --install   # release build, signed if you have an Apple Development certificate
 ```
+(`clean_run.sh` is upstream's and doesn't build the llama-helper sidecar; `dev-gpu.sh` with `CMAKE_DISABLE_FIND_PACKAGE_OpenSSL=ON` is the dev-mode equivalent.)
+
+**Stable signing (one-time):** Xcode → Settings → Accounts → add your Apple ID → Manage Certificates → "+" → Apple Development. `build-hearken.sh` then signs with it, and macOS keeps Hearken's permissions across rebuilds.
 
 Checklist:
 - [ ] Record 5 min of Google Meet and 5 min of Zoom. Meeting folder has `audio.mp4`, `mic.mp4`, `system.mp4`; all three are the same length.
