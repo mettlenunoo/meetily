@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, File, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, FolderKanban, ListTodo, GraduationCap } from 'lucide-react';
+import { ChevronDown, ChevronRight, File, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, FolderKanban, ListTodo, GraduationCap, MessageCircleQuestion, CalendarRange, Brain } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSidebar } from './SidebarProvider';
 import type { CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
@@ -32,10 +32,13 @@ import { ComplianceNotification } from '../ComplianceNotification';
 import { Input } from '../ui/input';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '../ui/input-group';
 import { projectsApi } from '@/lib/projects';
+import { intelligenceApi, type MeaningHit } from '@/lib/intelligence';
 
 const NAV_LINKS = [
+  { href: '/ask', label: 'Ask Hearken', Icon: MessageCircleQuestion },
   { href: '/projects', label: 'Projects', Icon: FolderKanban },
   { href: '/action-items', label: 'Action items', Icon: ListTodo },
+  { href: '/digest', label: 'Weekly digest', Icon: CalendarRange },
   { href: '/study', label: 'Study', Icon: GraduationCap },
 ] as const;
 
@@ -138,6 +141,20 @@ const Sidebar: React.FC = () => {
       clearInterval(timer);
     };
   }, [pathname]);
+
+  // "Related by meaning" results under the search (only when search by meaning is on)
+  const [meaningHits, setMeaningHits] = useState<MeaningHit[]>([]);
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.split(/\s+/).length < 2) {
+      setMeaningHits([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      intelligenceApi.search(q, 5).then(setMeaningHits).catch(() => setMeaningHits([]));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   const isActivePath = (href: string) =>
     pathname === href || (href === '/projects' && pathname === '/project');
@@ -853,6 +870,24 @@ const Sidebar: React.FC = () => {
                       {item.children!.map(child => renderItem(child, 1))}
                     </div>
                   ))}
+                {searchQuery.trim() && meaningHits.length > 0 && (
+                  <div className="mx-3 mt-3 border-t border-gray-100 pt-2">
+                    <p className="flex items-center gap-1 px-3 pb-1 text-xs font-medium text-gray-500">
+                      <Brain className="w-3 h-3" /> Related by meaning
+                    </p>
+                    {meaningHits.map((h, i) => (
+                      <button
+                        key={`${h.meetingId}-${i}`}
+                        type="button"
+                        onClick={() => router.push(`/meeting-details?id=${h.meetingId}${h.startSeconds != null ? `&t=${Math.floor(h.startSeconds)}` : ''}`)}
+                        className="block w-full rounded-md px-3 py-1.5 text-left hover:bg-gray-50"
+                      >
+                        <span className="block truncate text-sm text-gray-800">{h.meetingTitle}</span>
+                        <span className="block text-xs text-gray-500 line-clamp-2">{h.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

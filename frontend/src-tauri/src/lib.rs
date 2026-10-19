@@ -42,6 +42,7 @@ pub mod config;
 pub mod console_utils;
 pub mod database;
 pub mod documents;
+pub mod intelligence;
 pub mod notifications;
 pub mod ollama;
 pub mod onboarding;
@@ -521,6 +522,8 @@ pub fn run() {
 
             // Local reminders for overdue and due-soon action items
             projects::reminders::start(_app.handle().clone());
+            // Search-by-meaning indexing and the Friday digest notification
+            intelligence::start(_app.handle().clone());
 
             // ⌥⌘B marks the current moment of a recording as important, from any app.
             {
@@ -789,6 +792,14 @@ pub fn run() {
             slack_bridge::api_share_meeting,
             slack_bridge::api_pull_from_bot,
             slack_bridge::api_list_slack_items,
+            intelligence::api_get_intelligence_status,
+            intelligence::api_set_semantic_search,
+            intelligence::api_reindex_now,
+            intelligence::api_semantic_search,
+            intelligence::ask::api_ask,
+            intelligence::brief::api_get_project_brief,
+            intelligence::brief::api_refresh_project_brief,
+            intelligence::digest::api_weekly_digest,
             summary::meeting_items::api_update_meeting_item,
             summary::meeting_items::api_create_meeting_item,
             summary::meeting_items::api_delete_meeting_item,

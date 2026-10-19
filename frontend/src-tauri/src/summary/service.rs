@@ -569,6 +569,9 @@ impl SummaryService {
                         )
                         .await;
 
+                        // Search-by-meaning index and the project's running brief.
+                        crate::intelligence::after_summary(&_app, &pool, &meeting_id).await;
+
                         // Keep a readable meeting.md next to the recording.
                         crate::summary::markdown_export::refresh_quietly(&pool, &meeting_id).await;
                     }

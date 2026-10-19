@@ -11,6 +11,7 @@ import { ProjectDialog } from '@/components/Projects/ProjectDialog';
 import { ActionItemRow } from '@/components/ActionItems/ActionItemRow';
 import { DocumentsPanel } from '@/components/Documents/DocumentsPanel';
 import { SlackItemsPanel } from '@/components/Slack/SlackItemsPanel';
+import { ProjectBrief } from '@/components/Intelligence/ProjectBrief';
 import { KIND_LABELS, projectsApi, type ProjectDetail, type TrackedItem } from '@/lib/projects';
 
 function clock(seconds: number | null): string {
@@ -133,6 +134,8 @@ function ProjectContent() {
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
+
+        <ProjectBrief projectId={project.id} hasMeetings={meetings.length > 0} />
 
         <section className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
           <div className="mb-2 flex items-center justify-between">
