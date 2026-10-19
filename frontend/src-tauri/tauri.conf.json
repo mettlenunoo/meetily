@@ -38,6 +38,16 @@
             },
             "capabilities": [
                 {
+                    "identifier": "print",
+                    "description": "Print-preview windows for documents: no file or system access",
+                    "windows": [
+                        "print-*"
+                    ],
+                    "permissions": [
+                        "core:event:default"
+                    ]
+                },
+                {
                     "identifier": "main",
                     "description": "Main window capability with file system and media access",
                     "windows": [

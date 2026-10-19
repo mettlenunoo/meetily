@@ -82,13 +82,40 @@ fn arg_limit(args: &Value, default: i64, max: i64) -> i64 {
     args.get("limit").and_then(Value::as_i64).unwrap_or(default).clamp(1, max)
 }
 
-/// True once Hearken has created the projects tables (older databases don't have them).
-async fn has_projects(pool: &SqlitePool) -> bool {
-    sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'projects'")
+async fn has_table(pool: &SqlitePool, name: &str) -> bool {
+    sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1")
+        .bind(name)
         .fetch_one(pool)
         .await
         .map(|n| n > 0)
         .unwrap_or(false)
+}
+
+/// True once Hearken has created the projects tables (older databases don't have them).
+async fn has_projects(pool: &SqlitePool) -> bool {
+    has_table(pool, "projects").await
+}
+
+/// "## Documents" lines for a meeting or project, or "" when there are none.
+async fn document_list(pool: &SqlitePool, column: &str, id: &str) -> Result<String, String> {
+    if !has_table(pool, "documents").await {
+        return Ok(String::new());
+    }
+    let rows: Vec<(String, String, String, String)> = sqlx::query_as(&format!(
+        "SELECT id, title, generated_by, updated_at FROM documents WHERE {column} = ?1 AND status = 'ready' ORDER BY updated_at DESC"
+    ))
+    .bind(id)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    if rows.is_empty() {
+        return Ok(String::new());
+    }
+    let mut out = String::from("\n## Documents (read with get_document)\n\n");
+    for (doc_id, title, by, updated) in rows {
+        let _ = writeln!(out, "- {title} — by {by}, {} [document {doc_id}]", short_date(&updated));
+    }
+    Ok(out)
 }
 
 /// SQL condition that is true when the meeting in `col` may be shown to Claude: it isn't
@@ -338,6 +365,7 @@ pub async fn get_meeting(pool: &SqlitePool, args: &Value) -> Result<String, Stri
     if let Some(n) = notes.filter(|n| !n.trim().is_empty()) {
         let _ = write!(out, "\n## Notes\n\n{}\n", n.trim());
     }
+    out.push_str(&document_list(pool, "meeting_id", id).await?);
 
     if args.get("include_transcript").and_then(Value::as_bool).unwrap_or(false) {
         let from = args.get("from_seconds").and_then(Value::as_f64);
@@ -701,6 +729,8 @@ pub async fn get_project(pool: &SqlitePool, args: &Value) -> Result<String, Stri
         let _ = writeln!(out, "- \"{title}\" — {}{} [id {mid}]", short_date(&created), if main { "" } else { " (also linked)" });
     }
 
+    out.push_str(&document_list(pool, "project_id", &id).await?);
+
     for (kind, heading) in [("action", "Action items"), ("decision", "Decisions")] {
         let items = sqlx::query(&format!(
             "SELECT i.*, m.title AS meeting_title, m.created_at AS meeting_created_at
@@ -831,6 +861,77 @@ pub async fn update_action_item(pool: &SqlitePool, args: &Value) -> Result<Strin
     write_item(&mut out, &updated, true);
     let _ = write!(out, "{export}.");
     Ok(out)
+}
+
+// ---------- documents ----------
+
+pub async fn get_document(pool: &SqlitePool, args: &Value) -> Result<String, String> {
+    let id = arg_str(args, "document_id").ok_or("document_id is required")?;
+    if !has_table(pool, "documents").await {
+        return Err(format!("No document with id {id}"));
+    }
+    let row: Option<(Option<String>, Option<String>, String, String, String)> = sqlx::query_as(
+        "SELECT meeting_id, project_id, title, markdown, generated_by FROM documents WHERE id = ?1 AND status = 'ready'",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    let (meeting_id, project_id, title, markdown, by) = row.ok_or_else(|| format!("No document with id {id}"))?;
+    // Same privacy rules as everything else: hidden sources are reported as not found.
+    let visible_source = match (&meeting_id, &project_id) {
+        (Some(m), _) => require_meeting(pool, m).await.is_ok(),
+        (_, Some(p)) => find_project(pool, p).await.is_ok(),
+        _ => false,
+    };
+    if !visible_source {
+        return Err(format!("No document with id {id}"));
+    }
+    Ok(format!("# {title}\n\n_Written by {by}_\n\n{markdown}"))
+}
+
+pub async fn save_document(pool: &SqlitePool, args: &Value) -> Result<String, String> {
+    if !has_table(pool, "documents").await {
+        return Err("this Hearken database has no documents yet (open the latest Hearken once)".into());
+    }
+    let title = arg_str(args, "title").ok_or("title is required")?;
+    let markdown = args.get("markdown").and_then(Value::as_str).map(str::trim).filter(|m| !m.is_empty())
+        .ok_or("markdown is required")?;
+    if markdown.to_lowercase().contains("<think") {
+        return Err("the document must not contain <thinking> tags".into());
+    }
+    let (meeting_id, project_id, owner) = match (arg_str(args, "meeting_id"), arg_str(args, "project")) {
+        (Some(m), None) => {
+            let t = require_meeting(pool, m).await?;
+            (Some(m.to_string()), None, format!("meeting \"{t}\""))
+        }
+        (None, Some(p)) => {
+            let (pid, name) = find_project(pool, p).await?;
+            (None, Some(pid), format!("project {name}"))
+        }
+        _ => return Err("give either meeting_id or project, not both".into()),
+    };
+    let id = format!("{:x}", {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        (title, markdown.len(), now()).hash(&mut h);
+        h.finish()
+    });
+    let ts = now();
+    sqlx::query(
+        "INSERT INTO documents (id, meeting_id, project_id, template_id, title, markdown, status, generated_by, created_at, updated_at)
+         VALUES (?1, ?2, ?3, 'claude', ?4, ?5, 'ready', 'claude-via-mcp', ?6, ?6)",
+    )
+    .bind(&id)
+    .bind(meeting_id)
+    .bind(project_id)
+    .bind(title)
+    .bind(markdown)
+    .bind(&ts)
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(format!("Saved \"{title}\" to {owner} [document {id}]. It appears under Documents in Hearken, where it can be edited or exported to Word or PDF."))
 }
 
 #[cfg(test)]

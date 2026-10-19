@@ -41,6 +41,7 @@ pub mod audio;
 pub mod config;
 pub mod console_utils;
 pub mod database;
+pub mod documents;
 pub mod notifications;
 pub mod ollama;
 pub mod onboarding;
@@ -769,6 +770,15 @@ pub fn run() {
             recordings::bookmarks::api_get_live_bookmarks,
             recordings::bookmarks::api_add_bookmark,
             recordings::bookmarks::api_delete_bookmark,
+            documents::api_generate_document,
+            documents::api_list_documents,
+            documents::api_get_document,
+            documents::api_update_document,
+            documents::api_delete_document,
+            documents::api_list_document_templates,
+            documents::api_export_document,
+            documents::api_open_print_window,
+            documents::api_print_window,
             summary::meeting_items::api_update_meeting_item,
             summary::meeting_items::api_create_meeting_item,
             summary::meeting_items::api_delete_meeting_item,

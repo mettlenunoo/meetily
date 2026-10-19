@@ -1,0 +1,37 @@
+{
+  "name": "Meeting Minutes",
+  "description": "Formal minutes: attendees, agenda, discussion by item, decisions and actions, as a record of the meeting.",
+  "sections": [
+    {
+      "title": "Meeting Details",
+      "instruction": "Give the meeting title and date from the transcript header, and list the attendees named or introduced in the recording. Write 'Not stated' for anything not mentioned.",
+      "format": "list"
+    },
+    {
+      "title": "Agenda",
+      "instruction": "List the agenda items in the order they were discussed. Use an agenda if one was read out; otherwise list the topics as they came up, with [mm:ss].",
+      "format": "list"
+    },
+    {
+      "title": "Discussion",
+      "instruction": "For each agenda item, summarise the discussion neutrally in the third person: the points raised, by whom when it is clear, and any disagreement. Include [mm:ss].",
+      "format": "paragraph"
+    },
+    {
+      "title": "Decisions",
+      "instruction": "List each decision exactly as agreed, with [mm:ss]. Do not include proposals that were not agreed.",
+      "format": "list"
+    },
+    {
+      "title": "Action Items",
+      "instruction": "List each action with its owner and due date only if they were stated; otherwise write 'Not stated'. Include [mm:ss].",
+      "format": "list",
+      "item_format": "| Action | Owner | Due | Time |\n| --- | --- | --- | --- |"
+    },
+    {
+      "title": "Next Meeting",
+      "instruction": "State the date, time or plan for the next meeting if it was mentioned; otherwise write 'Not stated'.",
+      "format": "paragraph"
+    }
+  ]
+}

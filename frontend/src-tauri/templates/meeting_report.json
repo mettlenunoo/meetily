@@ -1,0 +1,42 @@
+{
+  "name": "Meeting Report",
+  "description": "A formal, shareable report of a meeting's purpose, outcomes, decisions, actions and risks.",
+  "sections": [
+    {
+      "title": "Purpose",
+      "instruction": "State in one or two sentences why the meeting was held, as it appears from the discussion.",
+      "format": "paragraph"
+    },
+    {
+      "title": "Executive Summary",
+      "instruction": "Summarise the outcome of the meeting in one paragraph for a reader who was not there.",
+      "format": "paragraph"
+    },
+    {
+      "title": "Key Outcomes",
+      "instruction": "List the main results and conclusions, each with [mm:ss].",
+      "format": "list"
+    },
+    {
+      "title": "Decisions",
+      "instruction": "List each decision made, with [mm:ss].",
+      "format": "list"
+    },
+    {
+      "title": "Actions",
+      "instruction": "List each action. Fill owner and due date only when they were stated in the meeting; otherwise write 'Not stated'.",
+      "format": "list",
+      "item_format": "| Action | Owner | Due | Time |\n| --- | --- | --- | --- |"
+    },
+    {
+      "title": "Risks and Open Issues",
+      "instruction": "List risks, concerns, blockers and unresolved questions raised, with [mm:ss]. Write 'None raised' if there were none.",
+      "format": "list"
+    },
+    {
+      "title": "Next Steps",
+      "instruction": "Describe what happens next, as agreed in the meeting.",
+      "format": "paragraph"
+    }
+  ]
+}

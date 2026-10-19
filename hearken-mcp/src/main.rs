@@ -192,6 +192,33 @@ fn tools() -> Value {
                 "additionalProperties": false
             },
             "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
+        },
+        {
+            "name": "get_document",
+            "description": "Read a document (minutes, report, lecture notes, status report...) listed under a meeting or project.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"document_id": {"type": "string"}},
+                "required": ["document_id"],
+                "additionalProperties": false
+            },
+            "annotations": {"readOnlyHint": true, "openWorldHint": false}
+        },
+        {
+            "name": "save_document",
+            "description": "Save a document you wrote (e.g. minutes, a formal report, a project status report, a study guide) into Hearken under one meeting or one project, when the user asks you to. It is added next to the summary; nothing is replaced. Base it on Hearken's data, use ## headings, cite [mm:ss] or meeting dates, and fill owners and dates only when recorded.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "markdown": {"type": "string"},
+                    "meeting_id": {"type": "string", "description": "Save under this meeting..."},
+                    "project": {"type": "string", "description": "...or under this project (name or id)."}
+                },
+                "required": ["title", "markdown"],
+                "additionalProperties": false
+            },
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false}
         }
     ])
 }
@@ -251,6 +278,8 @@ async fn handle(pool: &sqlx::SqlitePool, method: &str, params: &Value) -> Result
                 "get_project" => db::get_project(pool, &args).await,
                 "assign_meeting_to_project" => db::assign_meeting_to_project(pool, &args).await,
                 "update_action_item" => db::update_action_item(pool, &args).await,
+                "get_document" => db::get_document(pool, &args).await,
+                "save_document" => db::save_document(pool, &args).await,
                 "save_summary" => db::save_summary(pool, &args).await,
                 "save_meeting_items" => db::save_meeting_items(pool, &args).await,
                 _ => return Err((-32602, format!("Unknown tool: {name}"))),

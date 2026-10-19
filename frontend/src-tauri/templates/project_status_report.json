@@ -1,0 +1,37 @@
+{
+  "name": "Project Status Report",
+  "description": "Status of a whole project from all its meetings: progress, decisions, open and overdue actions, risks and next steps.",
+  "sections": [
+    {
+      "title": "Status Summary",
+      "instruction": "In one paragraph, summarise where the project stands today based on all its meetings, oldest to newest. Mention the date range covered.",
+      "format": "paragraph"
+    },
+    {
+      "title": "Progress by Meeting",
+      "instruction": "For each meeting, in date order, give its title, date and the main progress or outcome in one or two bullets.",
+      "format": "list"
+    },
+    {
+      "title": "Decisions to Date",
+      "instruction": "List the decisions recorded across the meetings, newest first, with the meeting date for each.",
+      "format": "list"
+    },
+    {
+      "title": "Open Actions",
+      "instruction": "List the open action items with owner and due date exactly as recorded ('not stated' when missing). Put OVERDUE items first and mark them.",
+      "format": "list",
+      "item_format": "| Action | Owner | Due | Status |\n| --- | --- | --- | --- |"
+    },
+    {
+      "title": "Risks and Blockers",
+      "instruction": "List the risks, blockers and unresolved questions that appear in the meetings. Write 'None recorded' if there are none.",
+      "format": "list"
+    },
+    {
+      "title": "Next Steps",
+      "instruction": "List what is planned next, based on the latest meetings.",
+      "format": "list"
+    }
+  ]
+}

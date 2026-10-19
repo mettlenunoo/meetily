@@ -53,6 +53,7 @@ const SEARCH_SOURCE_LABELS: Record<string, string> = {
   notes: 'Notes',
   action: 'Action item',
   decision: 'Decision',
+  document: 'Document',
 };
 
 const Sidebar: React.FC = () => {

@@ -18,6 +18,15 @@ pub const INTERVIEW: &str = include_str!("../../../templates/interview.json");
 /// A note recorded by one person
 pub const VOICE_NOTE: &str = include_str!("../../../templates/voice_note.json");
 
+/// Formal minutes
+pub const MEETING_MINUTES: &str = include_str!("../../../templates/meeting_minutes.json");
+
+/// A formal, shareable meeting report
+pub const MEETING_REPORT: &str = include_str!("../../../templates/meeting_report.json");
+
+/// Status of a project across its meetings
+pub const PROJECT_STATUS_REPORT: &str = include_str!("../../../templates/project_status_report.json");
+
 /// Registry of all built-in templates
 ///
 /// Maps template identifiers to their embedded JSON content
@@ -28,6 +37,9 @@ pub fn get_builtin_templates() -> Vec<(&'static str, &'static str)> {
         ("lecture_notes", LECTURE_NOTES),
         ("interview", INTERVIEW),
         ("voice_note", VOICE_NOTE),
+        ("meeting_minutes", MEETING_MINUTES),
+        ("meeting_report", MEETING_REPORT),
+        ("project_status_report", PROJECT_STATUS_REPORT),
     ]
 }
 
@@ -45,13 +57,25 @@ pub fn get_builtin_template(id: &str) -> Option<&'static str> {
         "lecture_notes" => Some(LECTURE_NOTES),
         "interview" => Some(INTERVIEW),
         "voice_note" => Some(VOICE_NOTE),
+        "meeting_minutes" => Some(MEETING_MINUTES),
+        "meeting_report" => Some(MEETING_REPORT),
+        "project_status_report" => Some(PROJECT_STATUS_REPORT),
         _ => None,
     }
 }
 
 /// List all built-in template identifiers
 pub fn list_builtin_template_ids() -> Vec<&'static str> {
-    vec!["daily_standup", "standard_meeting", "lecture_notes", "interview", "voice_note"]
+    vec![
+        "daily_standup",
+        "standard_meeting",
+        "lecture_notes",
+        "interview",
+        "voice_note",
+        "meeting_minutes",
+        "meeting_report",
+        "project_status_report",
+    ]
 }
 
 #[cfg(test)]

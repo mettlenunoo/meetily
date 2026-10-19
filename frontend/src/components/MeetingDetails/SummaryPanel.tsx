@@ -10,6 +10,7 @@ import Analytics from '@/lib/analytics';
 import { useEffect, useRef, useState, RefObject } from 'react';
 import { toast } from 'sonner';
 import { MeetingItemsPanel } from './MeetingItemsPanel';
+import { DocumentsPanel } from '@/components/Documents/DocumentsPanel';
 import { Languages, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -288,12 +289,17 @@ export function SummaryPanel({
           </div>
         </div>
       ) : !hasSummary ? (
-        <EmptyStateSummary
-          onGenerate={() => onGenerateSummary(customPrompt)}
-          hasModel={modelConfig.provider !== null && modelConfig.model !== null}
-          isGenerating={isSummaryLoading}
-          error={summaryError}
-        />
+        <div className="flex flex-1 min-h-0 flex-col overflow-y-auto">
+          <EmptyStateSummary
+            onGenerate={() => onGenerateSummary(customPrompt)}
+            hasModel={modelConfig.provider !== null && modelConfig.model !== null}
+            isGenerating={isSummaryLoading}
+            error={summaryError}
+          />
+          {transcripts.length > 0 && (
+            <DocumentsPanel owner={{ meetingId: meeting.id }} className="mx-6 mb-6 border-t border-gray-200 pt-6" />
+          )}
+        </div>
       ) : (
         <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0">
           <div className="p-6 w-full">
@@ -316,6 +322,7 @@ export function SummaryPanel({
               }}
             />
             <MeetingItemsPanel meetingId={meeting.id} refreshKey={summaryStatus} />
+            <DocumentsPanel owner={{ meetingId: meeting.id }} className="mt-8 border-t border-gray-200 pt-6" />
           </div>
           {summaryStatus !== 'idle' && (
             <div className={`mt-4 p-4 rounded-lg ${summaryStatus === 'error' ? 'bg-red-100 text-red-700' :

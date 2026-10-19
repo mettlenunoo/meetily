@@ -1,5 +1,7 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
+
 import './globals.css'
 import { Source_Sans_3 } from 'next/font/google'
 import Sidebar from '@/components/Sidebar'
@@ -63,7 +65,23 @@ function ConditionalImportDialog({
 
 // export { metadata } from './metadata'
 
-export default function RootLayout({
+/**
+ * Print windows (/print) show one document and nothing else: none of the app's providers
+ * run there, so they can't react to tray or recording events a second time.
+ */
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+  if (pathname === '/print') {
+    return (
+      <html lang="en">
+        <body className={`${sourceSans3.variable} font-sans antialiased bg-white`}>{children}</body>
+      </html>
+    )
+  }
+  return <AppLayout>{children}</AppLayout>
+}
+
+function AppLayout({
   children,
 }: {
   children: React.ReactNode

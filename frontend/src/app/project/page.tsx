@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { ConfirmationModal } from '@/components/ConfirmationModel/confirmation-modal';
 import { ProjectDialog } from '@/components/Projects/ProjectDialog';
 import { ActionItemRow } from '@/components/ActionItems/ActionItemRow';
+import { DocumentsPanel } from '@/components/Documents/DocumentsPanel';
 import { KIND_LABELS, projectsApi, type ProjectDetail, type TrackedItem } from '@/lib/projects';
 
 function clock(seconds: number | null): string {
@@ -178,6 +179,10 @@ function ProjectContent() {
               ))}
             </ul>
           </section>
+        )}
+
+        {meetings.length > 0 && (
+          <DocumentsPanel owner={{ projectId: project.id }} className="mb-6 rounded-lg border border-gray-200 bg-white p-4" />
         )}
 
         <section className="rounded-lg border border-gray-200 bg-white p-4">

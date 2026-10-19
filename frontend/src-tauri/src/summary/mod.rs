@@ -33,6 +33,7 @@ pub struct CustomOpenAIConfig {
 pub mod commands;
 pub(crate) mod language_detection;
 pub mod llm_client;
+pub mod llm_config;
 pub mod markdown_export;
 pub mod meeting_items;
 pub(crate) mod metadata;
