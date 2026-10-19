@@ -35,6 +35,9 @@ pub struct Transcript {
     pub audio_start_time: Option<f64>,
     pub audio_end_time: Option<f64>,
     pub duration: Option<f64>,
+    /// "Me", "Others", "" (looked at, unclear) or NULL (not looked at)
+    #[sqlx(default)]
+    pub speaker: Option<String>,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]

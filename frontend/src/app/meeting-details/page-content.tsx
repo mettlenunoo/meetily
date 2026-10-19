@@ -96,6 +96,14 @@ export default function PageContent({
           if (cancelled) return;
           setMedia(m);
           applyDefaultTemplate(m.defaultTemplate);
+          // Work out Me / Others once, from the separate tracks, then show the labels.
+          const kinds = m.tracks.map((t) => t.kind);
+          if (!m.speakersLabeled && kinds.includes('mic') && kinds.includes('system')) {
+            mediaApi
+              .labelSpeakers(meeting.id)
+              .then(() => { if (!cancelled) onRefetchTranscripts?.(); })
+              .catch((e) => console.warn('Speaker labels not added:', e));
+          }
         })
         .catch((e) => console.error('Failed to load meeting media:', e));
     load();
@@ -104,6 +112,7 @@ export default function PageContent({
       cancelled = true;
       window.removeEventListener('projects-changed', load);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meeting.id, applyDefaultTemplate]);
 
   const handleRecordingTypeChange = async (recordingType: RecordingType) => {

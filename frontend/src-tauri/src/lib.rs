@@ -775,6 +775,7 @@ pub fn run() {
             recordings::bookmarks::api_get_live_bookmarks,
             recordings::bookmarks::api_add_bookmark,
             recordings::bookmarks::api_delete_bookmark,
+            recordings::speakers::api_label_speakers,
             documents::api_generate_document,
             documents::api_list_documents,
             documents::api_get_document,

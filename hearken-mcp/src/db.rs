@@ -396,7 +396,7 @@ pub async fn get_meeting(pool: &SqlitePool, args: &Value) -> Result<String, Stri
             let line = format!(
                 "[{}]{} {}\n",
                 at.map(clock).unwrap_or_else(|| "--:--".into()),
-                speaker.map(|s| format!(" {s}:")).unwrap_or_default(),
+                speaker.filter(|s| !s.is_empty()).map(|s| format!(" {s}:")).unwrap_or_default(),
                 text.trim()
             );
             if used + line.len() > MAX_TRANSCRIPT_CHARS {

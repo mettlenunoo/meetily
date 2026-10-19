@@ -443,8 +443,8 @@ mod tests {
 
     fn lines() -> Vec<TimedLine> {
         vec![
-            TimedLine { start_seconds: Some(60.0), text: "Remote sensing is the collection of data about an object without touching it.".into() },
-            TimedLine { start_seconds: Some(300.0), text: "NDVI uses the red and near infrared bands to measure vegetation health.".into() },
+            TimedLine { start_seconds: Some(60.0), text: "Remote sensing is the collection of data about an object without touching it.".into(), speaker: None },
+            TimedLine { start_seconds: Some(300.0), text: "NDVI uses the red and near infrared bands to measure vegetation health.".into(), speaker: None },
         ]
     }
 
@@ -509,7 +509,7 @@ mod live_tests {
             (260.0, "Healthy plants reflect a lot of near infrared light and absorb red light, so their NDVI is high."),
             (340.0, "This will definitely be in the exam: NDVI ranges from minus one to plus one."),
             (420.0, "For next week, read chapter four and submit the lab report by Friday."),
-        ].iter().map(|(t, s)| TimedLine { start_seconds: Some(*t), text: s.to_string() }).collect();
+        ].iter().map(|(t, s)| TimedLine { start_seconds: Some(*t), text: s.to_string(), speaker: None }).collect();
         let model = CurrentModel {
             provider: LLMProvider::Ollama,
             model: "qwen2.5:14b".into(),

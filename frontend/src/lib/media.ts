@@ -28,6 +28,7 @@ export interface MeetingMedia {
   defaultTemplate: string;
   tracks: AudioTrack[];
   bookmarks: Bookmark[];
+  speakersLabeled: boolean;
 }
 
 export const mediaApi = {
@@ -37,6 +38,7 @@ export const mediaApi = {
   addBookmark: (meetingId: string, seconds: number, note?: string) =>
     invoke<Bookmark>('api_add_bookmark', { meetingId, seconds, note: note ?? null }),
   deleteBookmark: (id: string) => invoke<void>('api_delete_bookmark', { id }),
+  labelSpeakers: (meetingId: string) => invoke<{ me: number; others: number; unclear: number }>('api_label_speakers', { meetingId }),
   /** Marks "now" in the recording in progress */
   addLiveBookmark: (note?: string) => invoke<{ seconds: number; note: string | null }>('api_add_live_bookmark', { note: note ?? null }),
 };

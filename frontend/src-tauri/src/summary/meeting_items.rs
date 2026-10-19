@@ -96,6 +96,7 @@ Extract:
 Rules:
 - Use only what is in the transcript. Do not guess.
 - "owner": the person responsible, exactly as named in the transcript. Use null if unclear.
+- Some lines start with "Me:" (the user who recorded the meeting) or "Others:" (anyone else). When the user commits to something on a "Me:" line ("I'll send it"), the owner is "Me". Never turn "Others" into a name.
 - "due": the deadline as spoken (e.g. "Friday", "end of month"). Use null if none was stated.
 - "priority": "high", "medium" or "low" only if the urgency is clear, otherwise null.
 - "evidence_quote": copy 5 to 25 consecutive words EXACTLY from one transcript line that supports the item. Do not include the [time] prefix.

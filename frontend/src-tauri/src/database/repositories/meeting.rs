@@ -92,6 +92,7 @@ impl MeetingsRepository {
                     audio_start_time: t.audio_start_time,
                     audio_end_time: t.audio_end_time,
                     duration: t.duration,
+                    speaker: t.speaker.filter(|s| !s.is_empty()),
                 })
                 .collect::<Vec<_>>();
 

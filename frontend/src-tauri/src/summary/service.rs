@@ -369,6 +369,22 @@ impl SummaryService {
             None => custom_prompt,
         };
 
+        // Explain the Me / Others labels when the transcript has them.
+        let has_speakers: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM transcripts WHERE meeting_id = ? AND speaker IN ('Me', 'Others'))",
+        )
+        .bind(&meeting_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap_or(false);
+        let custom_prompt = if has_speakers {
+            let note = "Some transcript lines start with \"Me:\" (the user who recorded this meeting) or \"Others:\" \
+                        (the other participants). When the user commits to something, they are its owner (\"Me\").";
+            if custom_prompt.trim().is_empty() { note.to_string() } else { format!("{}\n\n{}", custom_prompt.trim(), note) }
+        } else {
+            custom_prompt
+        };
+
         // Recordings in a local-only project never go to a cloud model.
         if !matches!(provider, LLMProvider::Ollama | LLMProvider::BuiltInAI)
             && crate::projects::is_local_only(&pool, &meeting_id).await

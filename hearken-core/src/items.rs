@@ -62,6 +62,8 @@ pub struct RawItem {
 pub struct TimedLine {
     pub start_seconds: Option<f64>,
     pub text: String,
+    /// "Me" or "Others" when Hearken could tell from the separate tracks
+    pub speaker: Option<String>,
 }
 
 pub fn format_clock(seconds: f64) -> String {
@@ -78,17 +80,20 @@ pub fn format_clock(seconds: f64) -> String {
 pub fn render_transcript(lines: &[TimedLine]) -> String {
     lines
         .iter()
-        .map(|l| match l.start_seconds {
-            Some(s) => format!("[{}] {}", format_clock(s), l.text.trim()),
-            None => l.text.trim().to_string(),
+        .map(|l| {
+            let who = l.speaker.as_deref().filter(|s| !s.is_empty()).map(|s| format!("{}: ", s)).unwrap_or_default();
+            match l.start_seconds {
+                Some(s) => format!("[{}] {}{}", format_clock(s), who, l.text.trim()),
+                None => format!("{}{}", who, l.text.trim()),
+            }
         })
         .collect::<Vec<_>>()
         .join("\n")
 }
 
 pub async fn load_timed_transcript(pool: &SqlitePool, meeting_id: &str) -> Result<Vec<TimedLine>, sqlx::Error> {
-    let rows = sqlx::query_as::<_, (String, Option<f64>)>(
-        "SELECT transcript, audio_start_time FROM transcripts
+    let rows = sqlx::query_as::<_, (String, Option<f64>, Option<String>)>(
+        "SELECT transcript, audio_start_time, speaker FROM transcripts
          WHERE meeting_id = ?
          ORDER BY COALESCE(audio_start_time, 0), timestamp",
     )
@@ -97,8 +102,8 @@ pub async fn load_timed_transcript(pool: &SqlitePool, meeting_id: &str) -> Resul
     .await?;
     Ok(rows
         .into_iter()
-        .filter(|(t, _)| !t.trim().is_empty())
-        .map(|(text, start_seconds)| TimedLine { start_seconds, text })
+        .filter(|(t, _, _)| !t.trim().is_empty())
+        .map(|(text, start_seconds, speaker)| TimedLine { start_seconds, text, speaker: speaker.filter(|s| !s.is_empty()) })
         .collect())
 }
 
@@ -268,10 +273,10 @@ mod tests {
 
     fn lines() -> Vec<TimedLine> {
         vec![
-            TimedLine { start_seconds: Some(12.0), text: "Okay, let's start.".into() },
-            TimedLine { start_seconds: Some(65.5), text: "Kwame will send the item list to Ammiel by Friday.".into() },
-            TimedLine { start_seconds: Some(90.0), text: "We agreed the deployment moves to Wednesday,".into() },
-            TimedLine { start_seconds: Some(95.0), text: "not Monday as planned.".into() },
+            TimedLine { start_seconds: Some(12.0), text: "Okay, let's start.".into(), speaker: None },
+            TimedLine { start_seconds: Some(65.5), text: "Kwame will send the item list to Ammiel by Friday.".into(), speaker: None },
+            TimedLine { start_seconds: Some(90.0), text: "We agreed the deployment moves to Wednesday,".into(), speaker: None },
+            TimedLine { start_seconds: Some(95.0), text: "not Monday as planned.".into(), speaker: None },
         ]
     }
 
@@ -307,6 +312,14 @@ mod tests {
         assert_eq!(clean_opt(Some("null".into())), None);
         assert_eq!(clean_opt(Some(" Unknown ".into())), None);
         assert_eq!(clean_opt(Some("Ama".into())), Some("Ama".into()));
+    }
+
+    #[test]
+    fn renders_speakers_when_known() {
+        let l = vec![TimedLine { start_seconds: Some(5.0), text: "I'll send it.".into(), speaker: Some("Me".into()) }];
+        assert_eq!(render_transcript(&l), "[00:05] Me: I'll send it.");
+        assert!(locate_quote(&l, "I'll send it").0, "the spoken words are matched");
+        assert!(!locate_quote(&l, "Me I'll send it").0, "the label is never part of a quote");
     }
 
     #[test]

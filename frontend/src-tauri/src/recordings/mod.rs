@@ -2,6 +2,7 @@
 //! moments, and access to a meeting's audio files for the in-app player.
 
 pub mod bookmarks;
+pub mod speakers;
 
 use crate::state::AppState;
 use serde::Serialize;
@@ -68,6 +69,8 @@ pub struct MeetingMedia {
     pub default_template: String,
     pub tracks: Vec<AudioTrack>,
     pub bookmarks: Vec<bookmarks::Bookmark>,
+    /// Me / Others labels have been worked out for this meeting's transcript
+    pub speakers_labeled: bool,
 }
 
 fn tracks_in(folder: &Path) -> Vec<AudioTrack> {
@@ -102,7 +105,13 @@ pub async fn api_get_meeting_media<R: Runtime>(
         }
     }
     let recording_type = recording_type(pool, &meeting_id).await;
+    let speakers_labeled: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM transcripts WHERE meeting_id = ? AND speaker IS NOT NULL)")
+        .bind(&meeting_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(MeetingMedia {
+        speakers_labeled,
         default_template: default_template(&recording_type).to_string(),
         recording_type,
         tracks,
