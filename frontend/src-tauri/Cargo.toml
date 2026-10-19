@@ -151,7 +151,8 @@ hearken-core = { path = "../../hearken-core" }
 # Common Tauri configuration
 tauri = { version = "2.6.2", features = [ "macos-private-api", "protocol-asset", "tray-icon"] }
 tauri-plugin-fs = "2.4.0"
-tauri-plugin-global-shortcut = "2"
+# 2.4 needs tauri 2.12; keep the crate on the same minor as @tauri-apps/api (2.11), or the build refuses.
+tauri-plugin-global-shortcut = "~2.3"
 tauri-plugin-dialog = "2.3.0"
 tauri-plugin-store = "2.4.0"
 tauri-plugin-notification = "2.3.1"
