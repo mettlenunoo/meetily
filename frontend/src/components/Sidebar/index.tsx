@@ -157,7 +157,7 @@ const Sidebar: React.FC = () => {
   }, [searchQuery]);
 
   const isActivePath = (href: string) =>
-    pathname === href || (href === '/projects' && pathname === '/project');
+    pathname === href || (href === '/projects' && pathname === '/project') || (href === '/study' && !!pathname?.startsWith('/study/'));
 
   useEffect(() => {
     // Note: Don't set hardcoded defaults - let DB be the source of truth

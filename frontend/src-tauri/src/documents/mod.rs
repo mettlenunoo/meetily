@@ -17,7 +17,7 @@ use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindowBuild
 use uuid::Uuid;
 
 /// Templates offered for a project document; every other template is for one meeting.
-pub const PROJECT_TEMPLATES: &[&str] = &["project_status_report"];
+pub const PROJECT_TEMPLATES: &[&str] = &["project_status_report", "course_study_guide"];
 
 #[derive(Debug, Clone, Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]

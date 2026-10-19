@@ -11,6 +11,8 @@ import { describeAuthor, documentsApi, type DocumentOwner, type DocumentTemplate
 
 interface DocumentsPanelProps {
   owner: DocumentOwner;
+  /** For project documents: courses get the study guide, other projects the status report */
+  projectKind?: string;
   className?: string;
 }
 
@@ -24,7 +26,7 @@ function when(iso: string): string {
  * report). Generated in the background with the summary model; open one to read,
  * edit or export it.
  */
-export function DocumentsPanel({ owner, className = '' }: DocumentsPanelProps) {
+export function DocumentsPanel({ owner, projectKind, className = '' }: DocumentsPanelProps) {
   const [docs, setDocs] = useState<HearkenDocument[]>([]);
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -38,8 +40,15 @@ export function DocumentsPanel({ owner, className = '' }: DocumentsPanelProps) {
 
   useEffect(() => {
     load();
-    documentsApi.templates(forProject).then(setTemplates).catch(console.error);
-  }, [load, forProject]);
+    documentsApi
+      .templates(forProject)
+      .then((ts) =>
+        setTemplates(
+          forProject ? ts.filter((t) => (t.id === 'course_study_guide') === (projectKind === 'course')) : ts,
+        ),
+      )
+      .catch(console.error);
+  }, [load, forProject, projectKind]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;

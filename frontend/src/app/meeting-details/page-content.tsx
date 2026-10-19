@@ -12,6 +12,7 @@ import { MeetingDetailsSplitView, type MeetingDetailsTab } from '@/components/Me
 import { ModelConfig } from '@/components/ModelSettingsModal';
 import { MeetingProjectBar } from '@/components/Projects/MeetingProjectBar';
 import { MeetingPlayer } from '@/components/Player/MeetingPlayer';
+import { StudyPanel } from '@/components/Study/StudyPanel';
 import { mediaApi, type MeetingMedia, type RecordingType } from '@/lib/media';
 import { useSearchParams } from 'next/navigation';
 
@@ -302,6 +303,11 @@ export default function PageContent({
               onTemplateSelect={templates.handleTemplateSelection}
               isModelConfigLoading={isModelConfigLoading}
               onOpenModelSettings={handleRegisterModalOpen}
+              extraSection={
+                media?.recordingType === 'lecture' ? (
+                  <StudyPanel scope={{ meetingId: meeting.id }} canGenerate className="mt-8 border-t border-gray-200 pt-6" />
+                ) : undefined
+              }
             />
           }
         />

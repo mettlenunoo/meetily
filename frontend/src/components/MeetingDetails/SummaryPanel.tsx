@@ -56,6 +56,8 @@ interface SummaryPanelProps {
   onTemplateSelect: (templateId: string, templateName: string) => void;
   isModelConfigLoading?: boolean;
   onOpenModelSettings?: (openFn: () => void) => void;
+  /** Shown under the items and documents (e.g. study aids for a lecture) */
+  extraSection?: React.ReactNode;
 }
 
 export function SummaryPanel({
@@ -86,6 +88,7 @@ export function SummaryPanel({
   onTemplateSelect,
   isModelConfigLoading = false,
   onOpenModelSettings,
+  extraSection,
 }: SummaryPanelProps) {
   const [summaryLang, setSummaryLang] = useState<string | null>(null);
   const [summaryLangStorage, setSummaryLangStorage] = useState<SummaryLanguageStorage>('metadata');
@@ -299,6 +302,7 @@ export function SummaryPanel({
           {transcripts.length > 0 && (
             <DocumentsPanel owner={{ meetingId: meeting.id }} className="mx-6 mb-6 border-t border-gray-200 pt-6" />
           )}
+          {transcripts.length > 0 && extraSection && <div className="mx-6 mb-6">{extraSection}</div>}
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0">
@@ -323,6 +327,7 @@ export function SummaryPanel({
             />
             <MeetingItemsPanel meetingId={meeting.id} refreshKey={summaryStatus} />
             <DocumentsPanel owner={{ meetingId: meeting.id }} className="mt-8 border-t border-gray-200 pt-6" />
+            {extraSection}
           </div>
           {summaryStatus !== 'idle' && (
             <div className={`mt-4 p-4 rounded-lg ${summaryStatus === 'error' ? 'bg-red-100 text-red-700' :

@@ -27,6 +27,9 @@ pub const MEETING_REPORT: &str = include_str!("../../../templates/meeting_report
 /// Status of a project across its meetings
 pub const PROJECT_STATUS_REPORT: &str = include_str!("../../../templates/project_status_report.json");
 
+/// Revision guide across a course's lectures
+pub const COURSE_STUDY_GUIDE: &str = include_str!("../../../templates/course_study_guide.json");
+
 /// Registry of all built-in templates
 ///
 /// Maps template identifiers to their embedded JSON content
@@ -40,6 +43,7 @@ pub fn get_builtin_templates() -> Vec<(&'static str, &'static str)> {
         ("meeting_minutes", MEETING_MINUTES),
         ("meeting_report", MEETING_REPORT),
         ("project_status_report", PROJECT_STATUS_REPORT),
+        ("course_study_guide", COURSE_STUDY_GUIDE),
     ]
 }
 
@@ -60,6 +64,7 @@ pub fn get_builtin_template(id: &str) -> Option<&'static str> {
         "meeting_minutes" => Some(MEETING_MINUTES),
         "meeting_report" => Some(MEETING_REPORT),
         "project_status_report" => Some(PROJECT_STATUS_REPORT),
+        "course_study_guide" => Some(COURSE_STUDY_GUIDE),
         _ => None,
     }
 }
@@ -75,6 +80,7 @@ pub fn list_builtin_template_ids() -> Vec<&'static str> {
         "meeting_minutes",
         "meeting_report",
         "project_status_report",
+        "course_study_guide",
     ]
 }
 

@@ -12,6 +12,7 @@ import { ActionItemRow } from '@/components/ActionItems/ActionItemRow';
 import { DocumentsPanel } from '@/components/Documents/DocumentsPanel';
 import { SlackItemsPanel } from '@/components/Slack/SlackItemsPanel';
 import { ProjectBrief } from '@/components/Intelligence/ProjectBrief';
+import { StudyPanel } from '@/components/Study/StudyPanel';
 import { KIND_LABELS, projectsApi, type ProjectDetail, type TrackedItem } from '@/lib/projects';
 
 function clock(seconds: number | null): string {
@@ -137,6 +138,10 @@ function ProjectContent() {
 
         <ProjectBrief projectId={project.id} hasMeetings={meetings.length > 0} />
 
+        {isCourse && (
+          <StudyPanel scope={{ courseId: project.id }} className="mb-6 rounded-lg border border-gray-200 bg-white p-4" />
+        )}
+
         <section className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
@@ -188,7 +193,7 @@ function ProjectContent() {
         {!isCourse && project.privacy !== 'local' && <SlackItemsPanel projectId={project.id} />}
 
         {meetings.length > 0 && (
-          <DocumentsPanel owner={{ projectId: project.id }} className="mb-6 rounded-lg border border-gray-200 bg-white p-4" />
+          <DocumentsPanel owner={{ projectId: project.id }} projectKind={project.kind} className="mb-6 rounded-lg border border-gray-200 bg-white p-4" />
         )}
 
         <section className="rounded-lg border border-gray-200 bg-white p-4">

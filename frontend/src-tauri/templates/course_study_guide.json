@@ -1,0 +1,37 @@
+{
+  "name": "Course Study Guide",
+  "description": "Revision guide for a whole course from all its lectures: topics, key terms, what was emphasised, and practice questions.",
+  "sections": [
+    {
+      "title": "Course Overview",
+      "instruction": "In one paragraph, say what the course has covered so far, based on the lectures listed (oldest to newest).",
+      "format": "paragraph"
+    },
+    {
+      "title": "Topics by Lecture",
+      "instruction": "For each lecture, in date order, list its date and title and the main topics as short bullets.",
+      "format": "list"
+    },
+    {
+      "title": "Key Terms",
+      "instruction": "List the important terms that come up across the lectures, each with a one-line definition as the lectures explain it.",
+      "format": "list",
+      "item_format": "| Term | Definition | Lecture |\n| --- | --- | --- |"
+    },
+    {
+      "title": "Emphasised for Exams and Assignments",
+      "instruction": "List everything the lectures say was stressed, will be examined, or is assessed, with the lecture date.",
+      "format": "list"
+    },
+    {
+      "title": "Assignments and Deadlines",
+      "instruction": "List the assignments, readings and deadlines recorded, with due dates as recorded.",
+      "format": "list"
+    },
+    {
+      "title": "Practice Questions",
+      "instruction": "Write 8 to 12 revision questions that cover the course, each followed by a short answer drawn only from the lectures.",
+      "format": "list"
+    }
+  ]
+}

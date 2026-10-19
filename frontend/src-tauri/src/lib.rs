@@ -54,6 +54,7 @@ pub mod parakeet_engine;
 pub mod projects;
 pub mod recordings;
 pub mod slack_bridge;
+pub mod study;
 pub mod state;
 pub mod summary;
 pub mod tray;
@@ -800,6 +801,13 @@ pub fn run() {
             intelligence::brief::api_get_project_brief,
             intelligence::brief::api_refresh_project_brief,
             intelligence::digest::api_weekly_digest,
+            study::api_generate_study_aids,
+            study::api_list_study_cards,
+            study::api_due_cards,
+            study::api_review_card,
+            study::api_add_study_card,
+            study::api_delete_study_card,
+            study::api_export_anki,
             summary::meeting_items::api_update_meeting_item,
             summary::meeting_items::api_create_meeting_item,
             summary::meeting_items::api_delete_meeting_item,
