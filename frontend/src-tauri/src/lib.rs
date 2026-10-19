@@ -52,6 +52,7 @@ pub mod openrouter;
 pub mod parakeet_engine;
 pub mod projects;
 pub mod recordings;
+pub mod slack_bridge;
 pub mod state;
 pub mod summary;
 pub mod tray;
@@ -779,6 +780,15 @@ pub fn run() {
             documents::api_export_document,
             documents::api_open_print_window,
             documents::api_print_window,
+            slack_bridge::api_get_bot_link,
+            slack_bridge::api_save_bot_link,
+            slack_bridge::api_test_bot_link,
+            slack_bridge::api_sync_bot_projects,
+            slack_bridge::api_preview_meeting_share,
+            slack_bridge::api_list_meeting_shares,
+            slack_bridge::api_share_meeting,
+            slack_bridge::api_pull_from_bot,
+            slack_bridge::api_list_slack_items,
             summary::meeting_items::api_update_meeting_item,
             summary::meeting_items::api_create_meeting_item,
             summary::meeting_items::api_delete_meeting_item,

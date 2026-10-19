@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Check, ChevronDown, FolderKanban, GraduationCap, Lightbulb, Lock, Plus, X } from 'lucide-react';
+import { Check, ChevronDown, FolderKanban, GraduationCap, Lightbulb, Lock, Plus, Send, X } from 'lucide-react';
+import { ShareToSlackDialog } from '@/components/Slack/ShareToSlackDialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { ProjectDialog } from './ProjectDialog';
@@ -39,6 +40,7 @@ export function MeetingProjectBar({ meetingId, recordingType, onRecordingTypeCha
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const askedFor = useRef<string | null>(null);
 
   const load = useCallback(async () => {
@@ -175,19 +177,31 @@ export function MeetingProjectBar({ meetingId, recordingType, onRecordingTypeCha
           </span>
         ))}
         {picker}
-        {recordingType && onRecordingTypeChange && (
-          <select
-            value={recordingType}
-            onChange={(e) => onRecordingTypeChange(e.target.value as RecordingType)}
-            className="ml-auto rounded border border-gray-200 bg-white px-1.5 py-1 text-xs text-gray-700"
-            title="Recording type: picks the summary template and what gets extracted"
-            aria-label="Recording type"
-          >
-            {(Object.keys(RECORDING_TYPE_LABELS) as RecordingType[]).map((t) => (
-              <option key={t} value={t}>{RECORDING_TYPE_LABELS[t]}</option>
-            ))}
-          </select>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          {!(state.primary?.privacy === 'local' || state.extras.some((p) => p.privacy === 'local')) && (
+            <button
+              type="button"
+              onClick={() => setSharing(true)}
+              className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+              title="Share the summary, action items and decisions through the Slack bot"
+            >
+              <Send className="w-3.5 h-3.5" /> Send to Slack
+            </button>
+          )}
+          {recordingType && onRecordingTypeChange && (
+            <select
+              value={recordingType}
+              onChange={(e) => onRecordingTypeChange(e.target.value as RecordingType)}
+              className="rounded border border-gray-200 bg-white px-1.5 py-1 text-xs text-gray-700"
+              title="Recording type: picks the summary template and what gets extracted"
+              aria-label="Recording type"
+            >
+              {(Object.keys(RECORDING_TYPE_LABELS) as RecordingType[]).map((t) => (
+                <option key={t} value={t}>{RECORDING_TYPE_LABELS[t]}</option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       {state.suggestion && (
@@ -210,6 +224,7 @@ export function MeetingProjectBar({ meetingId, recordingType, onRecordingTypeCha
         </div>
       )}
 
+      <ShareToSlackDialog meetingId={meetingId} open={sharing} onOpenChange={setSharing} />
       <ProjectDialog
         open={creating}
         onOpenChange={setCreating}

@@ -10,6 +10,7 @@ import { ConfirmationModal } from '@/components/ConfirmationModel/confirmation-m
 import { ProjectDialog } from '@/components/Projects/ProjectDialog';
 import { ActionItemRow } from '@/components/ActionItems/ActionItemRow';
 import { DocumentsPanel } from '@/components/Documents/DocumentsPanel';
+import { SlackItemsPanel } from '@/components/Slack/SlackItemsPanel';
 import { KIND_LABELS, projectsApi, type ProjectDetail, type TrackedItem } from '@/lib/projects';
 
 function clock(seconds: number | null): string {
@@ -180,6 +181,8 @@ function ProjectContent() {
             </ul>
           </section>
         )}
+
+        {!isCourse && project.privacy !== 'local' && <SlackItemsPanel projectId={project.id} />}
 
         {meetings.length > 0 && (
           <DocumentsPanel owner={{ projectId: project.id }} className="mb-6 rounded-lg border border-gray-200 bg-white p-4" />

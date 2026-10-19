@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical } from 'lucide-react';
+import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical, MessageSquare } from 'lucide-react';
+import { BotLinkSettings } from '@/components/Slack/BotLinkSettings';
 import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { motion } from 'framer-motion';
@@ -19,6 +20,7 @@ const TABS = [
   { value: 'recording', label: 'Recordings', icon: Mic },
   { value: 'Transcriptionmodels', label: 'Transcription', icon: DatabaseIcon },
   { value: 'summaryModels', label: 'Summary', icon: SparkleIcon },
+  { value: 'slack', label: 'Slack bot', icon: MessageSquare },
   { value: 'beta', label: 'Beta', icon: FlaskConical }
 ] as const;
 
@@ -123,6 +125,9 @@ export default function SettingsPage() {
             </TabsContent>
             <TabsContent value="summaryModels">
               <SummaryModelSettings />
+            </TabsContent>
+            <TabsContent value="slack" className="mt-6">
+              <BotLinkSettings />
             </TabsContent>
             <TabsContent value="beta" className="mt-6">
               <BetaSettings />
