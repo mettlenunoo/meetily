@@ -3,7 +3,9 @@
 import { invoke } from '@tauri-apps/api/core';
 import { appDataDir } from '@tauri-apps/api/path';
 import { useCallback, useEffect, useState, useRef } from 'react';
-import { Play, Pause, Square, Mic, AlertCircle, X } from 'lucide-react';
+import { Play, Pause, Square, Mic, AlertCircle, X, Bookmark } from 'lucide-react';
+import { toast } from 'sonner';
+import { clock, mediaApi } from '@/lib/media';
 import { ProcessRequest, SummaryResponse } from '@/types/summary';
 import { listen } from '@tauri-apps/api/event';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -71,6 +73,15 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
+
+  // Confirm bookmarks, including ones made with the ⌥⌘B hotkey from another app
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<{ seconds: number; note: string | null }>('bookmark-added', (event) => {
+      toast.success(`Bookmarked ${clock(event.payload.seconds)}`, { description: 'It will be highlighted in the summary.' });
+    }).then((fn) => (unlisten = fn));
+    return () => unlisten?.();
+  }, []);
 
   useEffect(() => {
     const checkTauri = async () => {
@@ -434,6 +445,24 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                         </TooltipTrigger>
                         <TooltipContent>
                           <p>{isPaused ? 'Resume recording' : 'Pause recording'}</p>
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => {
+                              mediaApi.addLiveBookmark().catch((e) => toast.error(String(e)));
+                            }}
+                            disabled={isPaused || isStopping || isStartingRecording}
+                            aria-label="Bookmark this moment"
+                            className="w-10 h-10 flex items-center justify-center bg-amber-50 border-2 border-amber-300 text-amber-700 hover:bg-amber-100 disabled:opacity-40 rounded-full transition-colors"
+                          >
+                            <Bookmark size={16} />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Bookmark this moment (⌥⌘B works from any app)</p>
                         </TooltipContent>
                       </Tooltip>
 

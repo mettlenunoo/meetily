@@ -117,7 +117,14 @@ export function ActionItemRow({ item, onChanged, showProject = true }: ActionIte
             <Quote className="w-3 h-3 mt-0.5 flex-shrink-0" />
             <span>
               {item.evidenceStartTime != null && (
-                <span className="font-mono text-gray-400 mr-1">[{formatClock(item.evidenceStartTime)}]</span>
+                <button
+                  type="button"
+                  onClick={() => router.push(`/meeting-details?id=${item.meetingId}&t=${Math.floor(item.evidenceStartTime!)}`)}
+                  title="Open the meeting at this moment"
+                  className="font-mono text-gray-400 mr-1 hover:text-blue-600 hover:underline"
+                >
+                  [{formatClock(item.evidenceStartTime)}]
+                </button>
               )}
               <span className="italic">“{item.evidenceQuote}”</span>
               {!item.evidenceVerified && (

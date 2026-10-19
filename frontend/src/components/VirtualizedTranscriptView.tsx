@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useReducer, startTransition, useEffect, useState, memo } from "react";
+import { seekTo } from '@/lib/media';
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
 import { useTranscriptStreaming } from "@/hooks/useTranscriptStreaming";
@@ -86,7 +87,14 @@ const TranscriptSegment = memo(function TranscriptSegment({
             <div className="flex items-start gap-2">
                 <Tooltip>
                     <TooltipTrigger>
-                        <span className="text-xs text-gray-400 mt-1 flex-shrink-0 min-w-[50px]">
+                        <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => seekTo(timestamp)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') seekTo(timestamp); }}
+                            title="Play from here"
+                            className="text-xs text-gray-400 mt-1 flex-shrink-0 min-w-[50px] cursor-pointer hover:text-blue-600 hover:underline"
+                        >
                             {formatRecordingTime(timestamp)}
                         </span>
                     </TooltipTrigger>

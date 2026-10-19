@@ -8,9 +8,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Button } from '@/components/ui/button';
 import { ProjectDialog } from './ProjectDialog';
 import { projectsApi, type MeetingProjects, type Project, type ProjectSummary } from '@/lib/projects';
+import { RECORDING_TYPE_LABELS, type RecordingType } from '@/lib/media';
 
 interface MeetingProjectBarProps {
   meetingId: string;
+  recordingType?: RecordingType;
+  onRecordingTypeChange?: (type: RecordingType) => void;
 }
 
 const EMPTY: MeetingProjects = { primary: null, extras: [], suggestion: null };
@@ -30,7 +33,7 @@ function ProjectIcon({ project, className = 'w-3.5 h-3.5' }: { project: Pick<Pro
  * When the meeting has none, Hearken may suggest one with its reason; nothing is filed
  * until the user accepts.
  */
-export function MeetingProjectBar({ meetingId }: MeetingProjectBarProps) {
+export function MeetingProjectBar({ meetingId, recordingType, onRecordingTypeChange }: MeetingProjectBarProps) {
   const router = useRouter();
   const [state, setState] = useState<MeetingProjects>(EMPTY);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
@@ -172,6 +175,19 @@ export function MeetingProjectBar({ meetingId }: MeetingProjectBarProps) {
           </span>
         ))}
         {picker}
+        {recordingType && onRecordingTypeChange && (
+          <select
+            value={recordingType}
+            onChange={(e) => onRecordingTypeChange(e.target.value as RecordingType)}
+            className="ml-auto rounded border border-gray-200 bg-white px-1.5 py-1 text-xs text-gray-700"
+            title="Recording type: picks the summary template and what gets extracted"
+            aria-label="Recording type"
+          >
+            {(Object.keys(RECORDING_TYPE_LABELS) as RecordingType[]).map((t) => (
+              <option key={t} value={t}>{RECORDING_TYPE_LABELS[t]}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {state.suggestion && (

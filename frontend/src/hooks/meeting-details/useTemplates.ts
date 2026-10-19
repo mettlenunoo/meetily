@@ -10,6 +10,8 @@ export function useTemplates() {
     description: string;
   }>>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('standard_meeting');
+  // Once the user picks a template themselves, the recording type no longer changes it.
+  const [userChoseTemplate, setUserChoseTemplate] = useState(false);
 
   // Fetch available templates on mount
   useEffect(() => {
@@ -32,15 +34,22 @@ export function useTemplates() {
   // Handle template selection
   const handleTemplateSelection = useCallback((templateId: string, templateName: string) => {
     setSelectedTemplate(templateId);
+    setUserChoseTemplate(true);
     toast.success('Template selected', {
       description: `Using "${templateName}" template for summary generation`,
     });
     Analytics.trackFeatureUsed('template_selected');
   }, []);
 
+  /** The template that suits the recording type (lecture, interview...), unless the user picked one. */
+  const applyDefaultTemplate = useCallback((templateId: string) => {
+    if (!userChoseTemplate) setSelectedTemplate(templateId);
+  }, [userChoseTemplate]);
+
   return {
     availableTemplates,
     selectedTemplate,
     handleTemplateSelection,
+    applyDefaultTemplate,
   };
 }

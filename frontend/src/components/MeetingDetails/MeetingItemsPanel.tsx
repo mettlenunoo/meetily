@@ -7,6 +7,7 @@ import { CheckCircle2, Circle, Gavel, ListTodo, Plus, Quote, ShieldAlert, Trash2
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DueDateButton } from '@/components/ActionItems/DueDateButton';
+import { seekTo } from '@/lib/media';
 
 export interface MeetingItem {
   id: string;
@@ -150,7 +151,14 @@ export function MeetingItemsPanel({ meetingId, refreshKey }: MeetingItemsPanelPr
         <Quote className="w-3 h-3 mt-0.5 flex-shrink-0" />
         <span>
           {item.evidenceStartTime != null && (
-            <span className="font-mono text-gray-400 mr-1">[{formatClock(item.evidenceStartTime)}]</span>
+            <button
+              type="button"
+              onClick={() => seekTo(item.evidenceStartTime!)}
+              title="Play from here"
+              className="font-mono text-gray-400 mr-1 hover:text-blue-600 hover:underline"
+            >
+              [{formatClock(item.evidenceStartTime)}]
+            </button>
           )}
           <span className="italic">“{item.evidenceQuote}”</span>
           {!item.evidenceVerified && (

@@ -11,6 +11,9 @@ import { SummaryPanel } from '@/components/MeetingDetails/SummaryPanel';
 import { MeetingDetailsSplitView, type MeetingDetailsTab } from '@/components/MeetingDetails/MeetingDetailsSplitView';
 import { ModelConfig } from '@/components/ModelSettingsModal';
 import { MeetingProjectBar } from '@/components/Projects/MeetingProjectBar';
+import { MeetingPlayer } from '@/components/Player/MeetingPlayer';
+import { mediaApi, type MeetingMedia, type RecordingType } from '@/lib/media';
+import { useSearchParams } from 'next/navigation';
 
 // Custom hooks
 import { useMeetingData } from '@/hooks/meeting-details/useMeetingData';
@@ -77,6 +80,41 @@ export default function PageContent({
   // Custom hooks
   const meetingData = useMeetingData({ meeting, summaryData, onMeetingUpdated });
   const templates = useTemplates();
+
+  // Recording type, audio tracks and bookmarks for the player
+  const [media, setMedia] = useState<MeetingMedia | null>(null);
+  const startParam = useSearchParams().get('t');
+  const startAt = startParam != null && !isNaN(Number(startParam)) ? Number(startParam) : undefined;
+  const { applyDefaultTemplate } = templates;
+  useEffect(() => {
+    let cancelled = false;
+    const load = () =>
+      mediaApi
+        .get(meeting.id)
+        .then((m) => {
+          if (cancelled) return;
+          setMedia(m);
+          applyDefaultTemplate(m.defaultTemplate);
+        })
+        .catch((e) => console.error('Failed to load meeting media:', e));
+    load();
+    window.addEventListener('projects-changed', load); // filing under a course can make it a lecture
+    return () => {
+      cancelled = true;
+      window.removeEventListener('projects-changed', load);
+    };
+  }, [meeting.id, applyDefaultTemplate]);
+
+  const handleRecordingTypeChange = async (recordingType: RecordingType) => {
+    try {
+      await mediaApi.setType(meeting.id, recordingType);
+      const m = await mediaApi.get(meeting.id);
+      setMedia(m);
+      applyDefaultTemplate(m.defaultTemplate);
+    } catch (e) {
+      toast.error(String(e));
+    }
+  };
 
   // Callback to register the modal open function
   const handleRegisterModalOpen = (openFn: () => void) => {
@@ -193,7 +231,20 @@ export default function PageContent({
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="flex flex-col h-screen min-w-0 bg-gray-50"
     >
-      <MeetingProjectBar meetingId={meeting.id} />
+      <MeetingProjectBar
+        meetingId={meeting.id}
+        recordingType={media?.recordingType}
+        onRecordingTypeChange={handleRecordingTypeChange}
+      />
+      {media && media.tracks.length > 0 && (
+        <MeetingPlayer
+          meetingId={meeting.id}
+          tracks={media.tracks}
+          bookmarks={media.bookmarks}
+          onBookmarksChange={(bookmarks) => setMedia((m) => m && { ...m, bookmarks })}
+          startAt={startAt}
+        />
+      )}
       <div className="flex flex-1 min-w-0 overflow-hidden">
         <MeetingDetailsSplitView
           activeTab={activeTab}
