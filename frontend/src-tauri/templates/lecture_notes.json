@@ -1,0 +1,42 @@
+{
+  "name": "Lecture Notes",
+  "description": "Study notes from a class or lecture: topics in order, definitions, examples, what the lecturer stressed, and assignments.",
+  "sections": [
+    {
+      "title": "Overview",
+      "instruction": "In two or three sentences, say what this lecture covered and how it fits the course, using only what the lecturer said.",
+      "format": "paragraph"
+    },
+    {
+      "title": "Topics Covered",
+      "instruction": "Outline the lecture in the order it was taught. For each topic give a short heading with the time it started as [mm:ss], then the main points as bullets. Keep the lecturer's own terms.",
+      "format": "list"
+    },
+    {
+      "title": "Key Terms and Definitions",
+      "instruction": "List each term the lecturer defined or explained, with the definition in plain words as given in the lecture and the [mm:ss] time. Do not add definitions the lecturer did not give.",
+      "format": "list",
+      "item_format": "| Term | Definition (as explained) | Time |\n| --- | --- | --- |"
+    },
+    {
+      "title": "Examples, Formulas and Worked Problems",
+      "instruction": "List every example, formula, calculation or worked problem the lecturer went through, step by step where they gave the steps, with [mm:ss].",
+      "format": "list"
+    },
+    {
+      "title": "Emphasised by the Lecturer",
+      "instruction": "List what the lecturer stressed as important, repeated, or said would be in an exam, test or assignment. Quote them briefly where possible, with [mm:ss]. Include moments the user bookmarked.",
+      "format": "list"
+    },
+    {
+      "title": "Questions Raised",
+      "instruction": "List questions asked in class (by the lecturer or students) and the answers given, with [mm:ss]. Mark any question left unanswered.",
+      "format": "list"
+    },
+    {
+      "title": "Assignments, Readings and Deadlines",
+      "instruction": "List every assignment, reading, exercise or deadline mentioned, with the due date exactly as said and [mm:ss]. Write 'None mentioned' if there were none.",
+      "format": "list"
+    }
+  ]
+}

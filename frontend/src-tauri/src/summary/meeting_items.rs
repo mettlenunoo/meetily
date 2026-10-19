@@ -59,6 +59,32 @@ struct ExtractionResponse {
 const SYSTEM_PROMPT: &str = "You extract commitments and decisions from meeting transcripts. \
 You output only valid JSON and never invent information.";
 
+/// Lectures have assignments and deadlines rather than meeting decisions.
+fn build_lecture_prompt(transcript_chunk: &str) -> String {
+    format!(
+        r#"Read the lecture transcript below. Each line starts with its time in the recording.
+
+Extract action_items: every assignment, reading, exercise, project, test or exam date, or other task the lecturer set for students.
+
+Rules:
+- Use only what is in the transcript. Do not guess.
+- "title": what to do, e.g. "Read chapter 4" or "Submit lab report 2".
+- "owner": null (it is for the students), unless the lecturer named a specific person or group.
+- "due": the deadline as spoken (e.g. "next Tuesday", "end of week 6"). Use null if none was stated.
+- "priority": "high" if the lecturer said it counts toward the grade or will be examined, otherwise null.
+- "evidence_quote": copy 5 to 25 consecutive words EXACTLY from one transcript line that supports the item. Do not include the [time] prefix.
+- decisions: always an empty array.
+- If there are none, return empty arrays.
+
+Return only this JSON, with no other text:
+{{"action_items":[{{"title":"","description":null,"owner":null,"due":null,"priority":null,"evidence_quote":""}}],"decisions":[]}}
+
+<transcript>
+{transcript_chunk}
+</transcript>"#
+    )
+}
+
 fn build_prompt(transcript_chunk: &str) -> String {
     format!(
         r#"Read the meeting transcript below. Each line starts with its time in the recording.
@@ -134,7 +160,13 @@ pub async fn extract_and_store(
     } else {
         chunk_text(&transcript, chunk_tokens, 100)
     };
-    info!("Extracting action items for {} in {} pass(es)", meeting_id, chunks.len());
+    let is_lecture = crate::recordings::recording_type(pool, meeting_id).await == "lecture";
+    info!(
+        "Extracting {} for {} in {} pass(es)",
+        if is_lecture { "assignments" } else { "action items" },
+        meeting_id,
+        chunks.len()
+    );
 
     let client = reqwest::Client::new();
     let mut found: Vec<(&'static str, RawItem)> = Vec::new();
@@ -148,7 +180,7 @@ pub async fn extract_and_store(
             llm.model_name,
             llm.api_key,
             SYSTEM_PROMPT,
-            &build_prompt(chunk),
+            &if is_lecture { build_lecture_prompt(chunk) } else { build_prompt(chunk) },
             llm.ollama_endpoint,
             llm.custom_openai_endpoint,
             llm.max_tokens,

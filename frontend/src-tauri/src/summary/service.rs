@@ -359,6 +359,19 @@ impl SummaryService {
             }
         };
 
+        // Moments the user bookmarked get prominence in the summary.
+        let custom_prompt = match crate::recordings::bookmarks::prompt_lines(&pool, &meeting_id).await {
+            Some(marks) => {
+                let note = format!(
+                    "The user bookmarked these moments as important (time in the recording, optional note). \
+                     Make sure the summary covers what was said at each of them:\n{}",
+                    marks
+                );
+                if custom_prompt.trim().is_empty() { note } else { format!("{}\n\n{}", custom_prompt.trim(), note) }
+            }
+            None => custom_prompt,
+        };
+
         // Recordings in a local-only project never go to a cloud model.
         if !matches!(provider, LLMProvider::Ollama | LLMProvider::BuiltInAI)
             && crate::projects::is_local_only(&pool, &meeting_id).await

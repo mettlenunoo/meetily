@@ -1,0 +1,21 @@
+{
+  "name": "Voice Note",
+  "description": "A note recorded by one person: a clean write-up of the thoughts, ideas and to-dos in it.",
+  "sections": [
+    {
+      "title": "Main Points",
+      "instruction": "Rewrite the voice note as clear, concise bullet points in the order said, keeping the speaker's meaning and removing filler words.",
+      "format": "list"
+    },
+    {
+      "title": "Ideas",
+      "instruction": "List any ideas or plans mentioned. Write 'None' if there were none.",
+      "format": "list"
+    },
+    {
+      "title": "To-dos",
+      "instruction": "List every task the speaker said they need to do, with any date mentioned exactly as said. Write 'None' if there were none.",
+      "format": "list"
+    }
+  ]
+}

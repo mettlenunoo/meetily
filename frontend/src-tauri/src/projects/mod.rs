@@ -412,6 +412,19 @@ pub async fn set_meeting_projects(
     .execute(&mut *tx)
     .await
     .map_err(|e| e.to_string())?;
+    // Filing a recording under a course makes it a lecture, unless the user chose another type.
+    if let Some(p) = primary_id {
+        sqlx::query(
+            "UPDATE meetings SET recording_type = 'lecture'
+             WHERE id = ?1 AND recording_type = 'meeting'
+               AND EXISTS (SELECT 1 FROM projects WHERE id = ?2 AND kind = 'course')",
+        )
+        .bind(meeting_id)
+        .bind(p)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+    }
     tx.commit().await.map_err(|e| e.to_string())
 }
 
@@ -554,6 +567,19 @@ mod tests {
         sqlx::query("UPDATE projects SET privacy = 'local' WHERE id = 'p2'").execute(&pool).await.unwrap();
         set_meeting_projects(&pool, "m1", Some("p1"), &["p2".into()]).await.unwrap();
         assert!(is_local_only(&pool, "m1").await, "an extra local project is enough");
+    }
+
+    #[tokio::test]
+    async fn filing_under_a_course_makes_it_a_lecture() {
+        let pool = db().await;
+        sqlx::query("UPDATE projects SET kind = 'course' WHERE id = 'p3'").execute(&pool).await.unwrap();
+        set_meeting_projects(&pool, "m1", Some("p1"), &[]).await.unwrap();
+        assert_eq!(crate::recordings::recording_type(&pool, "m1").await, "meeting");
+        set_meeting_projects(&pool, "m1", Some("p3"), &[]).await.unwrap();
+        assert_eq!(crate::recordings::recording_type(&pool, "m1").await, "lecture");
+        crate::recordings::set_recording_type(&pool, "m1", "interview").await.unwrap();
+        set_meeting_projects(&pool, "m1", Some("p3"), &[]).await.unwrap();
+        assert_eq!(crate::recordings::recording_type(&pool, "m1").await, "interview", "a chosen type is kept");
     }
 
     #[tokio::test]

@@ -992,6 +992,7 @@ pub async fn api_save_transcript<R: Runtime>(
                 "Successfully saved transcript and created meeting with id: {}",
                 meeting_id
             );
+            crate::recordings::bookmarks::persist_pending(pool, &meeting_id).await;
             Ok(serde_json::json!({
                 "status": "success",
                 "message": "Transcript saved successfully",

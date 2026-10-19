@@ -1,0 +1,31 @@
+{
+  "name": "Interview",
+  "description": "An interview or conversation with one main guest: who they are, what they said by topic, and notable quotes.",
+  "sections": [
+    {
+      "title": "Summary",
+      "instruction": "Summarise the interview in one paragraph: who was interviewed (as introduced in the recording), the purpose, and the main takeaways.",
+      "format": "paragraph"
+    },
+    {
+      "title": "Key Points by Topic",
+      "instruction": "Group what the interviewee said by topic, in the order discussed, with [mm:ss] for each topic.",
+      "format": "list"
+    },
+    {
+      "title": "Notable Quotes",
+      "instruction": "Copy up to eight memorable or important statements word for word from the transcript, with [mm:ss]. Do not paraphrase inside quotation marks.",
+      "format": "list"
+    },
+    {
+      "title": "Facts and Figures",
+      "instruction": "List any numbers, dates, names or facts the interviewee stated, with [mm:ss].",
+      "format": "list"
+    },
+    {
+      "title": "Follow-ups",
+      "instruction": "List anything that was promised, left open or needs checking after the interview, with who said it when stated.",
+      "format": "list"
+    }
+  ]
+}

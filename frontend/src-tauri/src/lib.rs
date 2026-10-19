@@ -50,6 +50,7 @@ pub mod groq;
 pub mod openrouter;
 pub mod parakeet_engine;
 pub mod projects;
+pub mod recordings;
 pub mod state;
 pub mod summary;
 pub mod tray;
@@ -519,6 +520,28 @@ pub fn run() {
             // Local reminders for overdue and due-soon action items
             projects::reminders::start(_app.handle().clone());
 
+            // ⌥⌘B marks the current moment of a recording as important, from any app.
+            {
+                use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+                let bookmark = Shortcut::new(Some(Modifiers::ALT | Modifiers::SUPER), Code::KeyB);
+                let handle = _app.handle().clone();
+                if let Err(e) = _app.handle().plugin(
+                    tauri_plugin_global_shortcut::Builder::new()
+                        .with_handler(move |_app, shortcut, event| {
+                            if shortcut == &bookmark && event.state() == ShortcutState::Pressed {
+                                if let Err(e) = recordings::bookmarks::add_live(&handle, None) {
+                                    log::info!("Bookmark hotkey: {}", e);
+                                }
+                            }
+                        })
+                        .build(),
+                ) {
+                    log::warn!("Global shortcut plugin failed to start: {}", e);
+                } else if let Err(e) = _app.global_shortcut().register(bookmark) {
+                    log::warn!("Could not register the ⌥⌘B bookmark shortcut: {}", e);
+                }
+            }
+
             // Initialize system tray
             if let Err(e) = tray::create_tray(_app.handle()) {
                 log::error!("Failed to create system tray: {}", e);
@@ -740,6 +763,12 @@ pub fn run() {
             projects::api_set_meeting_projects,
             projects::api_resolve_project_suggestion,
             projects::api_suggest_project,
+            recordings::api_set_recording_type,
+            recordings::api_get_meeting_media,
+            recordings::bookmarks::api_add_live_bookmark,
+            recordings::bookmarks::api_get_live_bookmarks,
+            recordings::bookmarks::api_add_bookmark,
+            recordings::bookmarks::api_delete_bookmark,
             summary::meeting_items::api_update_meeting_item,
             summary::meeting_items::api_create_meeting_item,
             summary::meeting_items::api_delete_meeting_item,

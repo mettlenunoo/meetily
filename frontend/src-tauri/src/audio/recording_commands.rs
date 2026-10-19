@@ -94,9 +94,19 @@ impl Drop for StoppingGuard {
 /// the mic-recovery budget already exhausted).
 fn finalize_recording_start() {
     info!("🔍 Setting IS_RECORDING to true and resetting SPEECH_DETECTED_EMITTED");
+    crate::recordings::bookmarks::clear_pending(); // bookmarks belong to one recording
     IS_RECORDING.store(true, Ordering::SeqCst);
     MIC_FALLBACK_FAILED_ATTEMPTS.store(0, Ordering::SeqCst); // fresh mic-recovery budget per session
     reset_speech_detected_flag(); // reset speech-detected emit latch for the new session
+}
+
+/// Seconds into the current recording, pauses excluded (the same clock as transcript
+/// times). None when not recording.
+pub fn current_recording_seconds() -> Option<f64> {
+    if !recording_live() {
+        return None;
+    }
+    RECORDING_MANAGER.lock().ok()?.as_ref()?.get_active_recording_duration()
 }
 
 // Global recording manager and transcription task to keep them alive during recording
