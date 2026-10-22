@@ -91,6 +91,27 @@ async fn has_table(pool: &SqlitePool, name: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// The newest Hearken database update this connector writes to (documents; projects and
+/// due dates come before it). Bump it when a write here starts using a newer migration.
+const NEEDS_SCHEMA: i64 = 20261019000200;
+
+/// Writes refuse to run against a database the installed Hearken hasn't updated yet, so
+/// nothing is half-saved.
+pub async fn require_current_schema(pool: &SqlitePool) -> Result<(), String> {
+    let newest: Option<i64> = sqlx::query_scalar("SELECT MAX(version) FROM _sqlx_migrations WHERE success = 1")
+        .fetch_one(pool)
+        .await
+        .unwrap_or(None);
+    if newest.unwrap_or(0) >= NEEDS_SCHEMA {
+        Ok(())
+    } else {
+        Err("Nothing was saved. The Hearken app on this Mac is older than this connector, so its database is \
+             missing tables and columns the connector needs (for example due dates). Install the latest Hearken \
+             and open it once to update the database, then try again."
+            .into())
+    }
+}
+
 /// True once Hearken has created the projects tables (older databases don't have them).
 async fn has_projects(pool: &SqlitePool) -> bool {
     has_table(pool, "projects").await
@@ -516,7 +537,7 @@ async fn refresh_export(pool: &SqlitePool, id: &str) -> String {
     match hearken_core::export::write_to_meeting_folder(pool, id).await {
         Ok(Some(p)) => format!("meeting.md updated at {}", p.display()),
         Ok(None) => "no meeting folder, so meeting.md was not written".into(),
-        Err(e) => format!("meeting.md not updated: {e}"),
+        Err(e) => format!("WARNING: the save worked, but meeting.md (the Markdown copy in the meeting folder) was NOT updated: {e}"),
     }
 }
 
@@ -577,7 +598,7 @@ pub async fn save_summary(pool: &SqlitePool, args: &Value) -> Result<String, Str
     let export = refresh_export(pool, id).await;
     let backed_up = if status.is_some() { " The previous summary was kept as a backup." } else { "" };
     Ok(format!(
-        "Saved the summary for \"{title}\" ({} characters).{backed_up} {export}. It shows in Hearken next time the meeting is opened.",
+        "Saved the summary for \"{title}\" ({} characters).{backed_up} It shows in Hearken next time the meeting is opened.\n{export}.",
         body.chars().count()
     ))
 }
@@ -937,6 +958,21 @@ pub async fn save_document(pool: &SqlitePool, args: &Value) -> Result<String, St
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn writes_wait_for_hearken_to_update_the_database() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::query("CREATE TABLE _sqlx_migrations (version INTEGER PRIMARY KEY, success BOOLEAN NOT NULL)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        // The Oct 18 app's newest update: no due dates yet.
+        sqlx::query("INSERT INTO _sqlx_migrations VALUES (20261018000100, 1)").execute(&pool).await.unwrap();
+        let err = require_current_schema(&pool).await.unwrap_err();
+        assert!(err.starts_with("Nothing was saved"), "{err}");
+        sqlx::query("INSERT INTO _sqlx_migrations VALUES (20261019000800, 1)").execute(&pool).await.unwrap();
+        assert!(require_current_schema(&pool).await.is_ok());
+    }
 
     #[test]
     fn clock_formats() {

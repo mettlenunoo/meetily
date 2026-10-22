@@ -269,6 +269,14 @@ async fn handle(pool: &sqlx::SqlitePool, method: &str, params: &Value) -> Result
         "tools/call" => {
             let name = params.get("name").and_then(Value::as_str).unwrap_or("");
             let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
+            const WRITES: &[&str] = &[
+                "save_summary", "save_meeting_items", "update_action_item", "save_document", "assign_meeting_to_project",
+            ];
+            if WRITES.contains(&name) {
+                if let Err(e) = db::require_current_schema(pool).await {
+                    return Ok(json!({"content": [{"type": "text", "text": format!("Error: {e}")}], "isError": true}));
+                }
+            }
             let result = match name {
                 "search_meetings" => db::search_meetings(pool, &args).await,
                 "list_meetings" => db::list_meetings(pool, &args).await,
