@@ -22,6 +22,12 @@ impl TranscriptsRepository {
         let mut transaction = conn.begin().await?;
 
         let now = Utc::now();
+        // Dated by when the recording started, not when it was saved.
+        let started = folder_path
+            .as_deref()
+            .and_then(|f| crate::recordings::start_times::recording_started_at(std::path::Path::new(f)))
+            .filter(|s| *s <= now)
+            .unwrap_or(now);
 
         // 1. Create the new meeting
         let result = sqlx::query(
@@ -29,7 +35,7 @@ impl TranscriptsRepository {
         )
         .bind(&meeting_id)
         .bind(meeting_title)
-        .bind(now)
+        .bind(started)
         .bind(now)
         .bind(&folder_path)
         .execute(&mut *transaction)

@@ -535,6 +535,23 @@ pub fn run() {
             inbox::start(_app.handle().clone());
             // Monthly reminder when nothing backs the recordings up
             backup::start(_app.handle().clone());
+            // Once: date older meetings by when their recording started
+            {
+                let app = _app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    for _ in 0..60 {
+                        if let Some(state) = app.try_state::<state::AppState>() {
+                            match recordings::start_times::fix_existing(state.db_manager.pool()).await {
+                                Ok(n) if n > 0 => log::info!("Dated {} meeting(s) by their recording start", n),
+                                Ok(_) => {}
+                                Err(e) => log::warn!("Couldn't fix meeting start times: {}", e),
+                            }
+                            return;
+                        }
+                        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    }
+                });
+            }
 
             // ⌥⌘B marks the current moment of a recording as important, from any app.
             {

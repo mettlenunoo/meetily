@@ -4,6 +4,7 @@
 pub mod bookmarks;
 pub mod consent;
 pub mod speakers;
+pub mod start_times;
 
 use crate::state::AppState;
 use serde::Serialize;
